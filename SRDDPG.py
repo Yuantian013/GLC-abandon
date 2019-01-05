@@ -96,10 +96,10 @@ class DDPG(object):
         br = bt[:, -self.s_dim - 1: -self.s_dim]
         bs_ = bt[:, -self.s_dim:]
         self.sess.run(self.atrain, {self.S: bs,self.S_: bs_,self.LR_A:LR_A})
-        self.sess.run(self.dtrain, {self.S: bs, self.LR_D: LR_D})
+        # self.sess.run(self.dtrain, {self.S: bs, self.LR_D: LR_D})
         self.sess.run(self.ctrain, {self.S: bs, self.a: ba, self.R: br, self.S_: bs_,self.LR_C:LR_C})
         self.sess.run(self.labda_, {self.S: bs, self.a: ba, self.R: br, self.S_: bs_,self.d: bd})
-        self.labda=tf.max(self.labda_,0)
+        self.labda=tf.maximum(self.labda_,0)
 
     def store_transition(self, s, a, d, r, s_):
         transition = np.hstack((s, a, d,[r], s_))
@@ -128,7 +128,7 @@ class DDPG(object):
             net_1 = tf.layers.dense(net_0, 128, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
             # net_2 = tf.layers.dense(net_1, 64, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
             return tf.layers.dense(net_1, 1, trainable=trainable)  # Q(s,a)
-
+    #disturb模块
     def _build_d(self, s, reuse=None, custom_getter=None):
         trainable = True if reuse is None else False
         with tf.variable_scope('Disturber', reuse=reuse, custom_getter=custom_getter):
@@ -136,9 +136,11 @@ class DDPG(object):
             net_1 = tf.layers.dense(net_0, 128, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
             net_2 = tf.layers.dense(net_1, 64, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
             a = tf.layers.dense(net_2, self.a_dim, activation=tf.nn.tanh, name='a', trainable=trainable)
-            return tf.multiply(a, self.a_bound/10, name='scaled_d')
+            # return tf.multiply(a, self.a_bound/10, name='scaled_d')
+            return tf.multiply(a, 0, name='scaled_d')
 
 
+    #暂时未启用
     def _build_dreamer(self, s, a, reuse=None, custom_getter=None):
         trainable = True if reuse is None else False
         with tf.variable_scope('Dreamer', reuse=reuse, custom_getter=custom_getter):
@@ -170,8 +172,7 @@ win=0
 winmax=1
 max_reward=140000
 max_ewma_reward=100000
-# LR_A = 0.01    # learning rate for actor
-# LR_C = 0.02    # learning rate for critic
+
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
@@ -184,11 +185,11 @@ for i in range(MAX_EPISODES):
         # a = ddpg.choose_action(np.random.normal(s, 0.02))
         a = ddpg.choose_action(s)
         d = ddpg.choose_disturbance(s)
-        # a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
+        a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
         #if var<0.01:
             #a=np.clip(np.random.normal(a, a_bound), -a_bound, a_bound)
         s_, r, done, hit = env.step(a,i)
-
+        # s_, r, done, hit = env.step(a+d, i)
         ddpg.store_transition(s, a, d, r/10, s_)
 
         if ddpg.pointer > MEMORY_CAPACITY:
