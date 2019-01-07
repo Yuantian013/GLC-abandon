@@ -86,7 +86,16 @@ class DDPG(object):
         # self.saver.restore(self.sess, "Model/cartpole_normal.ckpt")  # 1 0.1 0.5 0.001no r
 
     def choose_action(self, s):
-        return self.sess.run(self.a, {self.S: s[np.newaxis, :]})[0]
+        time_start = time.time()
+
+        s = s[np.newaxis, :]
+        time_end = time.time()
+        result = self.sess.run(self.a, {self.S: s})[0]
+        time_end2 = time.time()
+
+        t1 = time_end-time_start
+        t2 = time_end2-time_start
+        return result
 
     def choose_disturbance(self, s):
         return self.sess.run(self.d, {self.S: s[np.newaxis, :]})[0]
@@ -181,14 +190,15 @@ for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
     ep_reward = 0
+    a = ddpg.choose_action(s)
+    d = ddpg.choose_disturbance(s)
     for j in range(MAX_EP_STEPS):
         if RENDER:
             env.render()
 
         # Add exploration noise
         # a = ddpg.choose_action(np.random.normal(s, 0.02))
-        a = ddpg.choose_action(s)
-        d = ddpg.choose_disturbance(s)
+
         a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
         #if var<0.01:
             #a=np.clip(np.random.normal(a, a_bound), -a_bound, a_bound)
@@ -204,6 +214,8 @@ for i in range(MAX_EPISODES):
             ddpg.learn(LR_A,LR_C,LR_D)
 
         s = s_
+        a = ddpg.choose_action(s)
+        d = ddpg.choose_disturbance(s)
         ep_reward += r
         if j == MAX_EP_STEPS - 1:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j

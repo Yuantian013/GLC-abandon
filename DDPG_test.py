@@ -6,7 +6,9 @@ import gym
 import time
 import matplotlib.pyplot as plt
 from cartpole_uncertainty import CartPoleEnv_adv
-
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 50000
@@ -48,7 +50,7 @@ class DDPG(object):
 
         self.a = self._build_a(self.S,)# 这个网络用于及时更新参数
         self.d = self._build_d(self.S, )  # 这个网络用于及时更新参数
-        q = self._build_c(self.S, self.a, self.d)# 这个网络是用于及时更新参数
+        self.q = self._build_c(self.S, self.a, self.d)# 这个网络是用于及时更新参数
         a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor')
         c_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Critic')
         d_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Disturber')
@@ -68,15 +70,15 @@ class DDPG(object):
         # 这个网络不及时更新参数, 用于给出 Actor 更新参数时的 Gradient ascent 强度
         q_ = self._build_c(self.S_, tf.stop_gradient(a_), d_, reuse=True, custom_getter=ema_getter)
         q_cons = self._build_c(self.S_, a_cons, d_, reuse=True)
-        q_lambda=self.labda*tf.reduce_mean(q-q_cons)
-        a_loss = - tf.reduce_mean(q)+q_lambda  # maximize the q
-        d_loss = tf.reduce_mean(q)
+        q_lambda=self.labda*tf.reduce_mean(self.q-q_cons)
+        a_loss = - tf.reduce_mean(self.q)+q_lambda  # maximize the q
+        d_loss = tf.reduce_mean(self.q)
         self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
         self.dtrain = tf.train.AdamOptimizer(self.LR_D).minimize(d_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
-        self.labda_ = self.labda+0.01*tf.reduce_mean(q-q_cons) #(q-q_+self.R+self.d*self.d)
+        self.labda_ = self.labda+0.01*tf.reduce_mean(self.q-q_cons) #(q-q_+self.R+self.d*self.d)
         with tf.control_dependencies(target_update):    # soft replacement happened at here
             q_target = self.R + GAMMA * q_ + beta* self.d*self.d
-            td_error = tf.losses.mean_squared_error(labels=q_target, predictions=q)
+            td_error = tf.losses.mean_squared_error(labels=q_target, predictions=self.q)
             self.ctrain = tf.train.AdamOptimizer(self.LR_C).minimize(td_error, var_list=c_params)
 
         self.sess.run(tf.global_variables_initializer())
@@ -88,6 +90,9 @@ class DDPG(object):
 
     def choose_disturbance(self, s):
         return self.sess.run(self.d, {self.S: s[np.newaxis, :]})[0]
+
+    def calculate_q(self, s, a):
+        return self.sess.run(self.q, {self.S: s[np.newaxis, :], self.a: a[np.newaxis, :]})[0]
 
     def learn(self,LR_A,LR_C,LR_D):
         indices = np.random.choice(MEMORY_CAPACITY, size=BATCH_SIZE)
@@ -167,9 +172,9 @@ a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
 
 ddpg = DDPG(a_dim, s_dim, a_bound)
-
-saver.restore(ddpg.sess, tf.train.latest_checkpoint(path))
-var = 5  # control exploration
+saver = tf.train.Saver()
+saver.restore(ddpg.sess, tf.train.latest_checkpoint("./Model/"))
+var = 0  # control exploration
 t1 = time.time()
 win=0
 winmax=1
@@ -177,41 +182,33 @@ max_reward=140000
 max_ewma_reward=100000
 # LR_A = 0.01    # learning rate for actor
 # LR_C = 0.02    # learning rate for critic
-for i in range(MAX_EPISODES):
-    iteration[0,i+1]=i+1
-    s = env.reset()
-    ep_reward = 0
-    # MAX_EP_STEPS = min(max(500,MAX_EPISODES),1000)
-    for j in range(MAX_EP_STEPS):
-        if RENDER:
-            env.render()
-
-        # Add exploration noise
-        a = ddpg.choose_action(np.random.normal(s, 0.05))
-        a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
-        #if var<0.01:
-            #a=np.clip(np.random.normal(a, a_bound), -a_bound, a_bound)
-        s_, r, done, hit = env.step(a,i)
-        s = s_
-        ep_reward += r
-        if j == MAX_EP_STEPS - 1:
-            EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
-            EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
-            #EWMA[0,i+1]=EWMA[0,i+1]/(1-(EWMA_p **(i+1)))
-            print('Episode:', i, ' Reward: %i' % int(ep_reward), 'Explore: %.2f' % var,"good","EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A)
 
 
-        elif done:
-            EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
-            EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
-            #EWMA[0,i+1]=EWMA[0,i+1]/(1-(EWMA_p **(i+1)))
-            if hit==1:
-                print('Episode:', i, ' Reward: %i' % int(ep_reward), 'Explore: %.2f' % var, "break in : ", j, "due to ",
-                      "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A)
-            else:
-                print('Episode:', i, ' Reward: %i' % int(ep_reward), 'Explore: %.2f' % var, "break in : ", j, "due to",
-                      "fall down","EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A)
-            win=0
-            break
+s = env.reset()
+ep_reward = 0
+# MAX_EP_STEPS = min(max(500,MAX_EPISODES),1000)
+q_his = []
+for j in range(MAX_EP_STEPS):
+    if RENDER:
+        env.render()
+
+    # Add exploration noise
+    a = ddpg.choose_action(s)
+    a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
+    #if var<0.01:
+        #a=np.clip(np.random.normal(a, a_bound), -a_bound, a_bound)
+    q = ddpg.calculate_q(s, a)
+
+    s_, r, done, hit = env.step(a,0)
+    s = s_
+    ep_reward += r
+    q_his.append(q)
+
 
 print('Running time: ', time.time() - t1)
+plt.plot(np.arange(len(q_his)), q_his)
+plt.ylabel('Q')
+plt.xlabel('testing steps')
+fig = plt.gcf()
+fig.set_size_inches(9, 6)
+plt.show()
