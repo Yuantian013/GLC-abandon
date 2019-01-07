@@ -5,7 +5,9 @@ import numpy as np
 import time
 from cartpole_clean import CartPoleEnv_adv as real_env
 from cartpole_uncertainty import CartPoleEnv_adv as dreamer
-
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 50000
@@ -55,6 +57,7 @@ class DDPG(object):
 
         beta=0.01
         self.labda=0.1
+
         ema = tf.train.ExponentialMovingAverage(decay=1 - TAU)          # soft replacement
         def ema_getter(getter, name, *args, **kwargs):
             return ema.average(getter(name, *args, **kwargs))
@@ -62,16 +65,17 @@ class DDPG(object):
         target_update = [ema.apply(a_params), ema.apply(c_params), ema.apply(d_params)]      # soft update operation
         # 这个网络不及时更新参数, 用于预测 Critic 的 Q_target 中的 action
         a_ = self._build_a(self.S_, reuse=True, custom_getter=ema_getter)   # replaced target parameters
-        #
+        a_cons = self._build_a(self.S_, reuse=True)
         d_ = self._build_d(self.S_, reuse=True, custom_getter=ema_getter)
         # 这个网络不及时更新参数, 用于给出 Actor 更新参数时的 Gradient ascent 强度
-        q_ = self._build_c(self.S_, a_, d_, reuse=True, custom_getter=ema_getter)
-        q_lambda=self.labda*(q-q_)
-        a_loss = - tf.reduce_mean(q-q_lambda)  # maximize the q
+        q_ = self._build_c(self.S_, tf.stop_gradient(a_), d_, reuse=True, custom_getter=ema_getter)
+        q_cons = self._build_c(self.S_, a_cons, d_, reuse=True)
+        q_lambda=self.labda*tf.reduce_mean(q-q_cons)
+        a_loss = - tf.reduce_mean(q)+q_lambda  # maximize the q
         d_loss = tf.reduce_mean(q)
         self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
         self.dtrain = tf.train.AdamOptimizer(self.LR_D).minimize(d_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
-        self.labda_ = self.labda+0.01*(q-q_+self.R+self.d*self.d)
+        self.labda_ = self.labda+0.01*tf.reduce_mean(q-q_cons) #(q-q_+self.R+self.d*self.d)
         with tf.control_dependencies(target_update):    # soft replacement happened at here
             q_target = self.R + GAMMA * q_ + beta* self.d*self.d
             td_error = tf.losses.mean_squared_error(labels=q_target, predictions=q)
@@ -109,7 +113,7 @@ class DDPG(object):
 
     #action 选择模块也是actor模块
     def _build_a(self, s, reuse=None, custom_getter=None):
-        trainable = True if reuse is None else False
+        trainable = True
         with tf.variable_scope('Actor', reuse=reuse, custom_getter=custom_getter):
             net_0 = tf.layers.dense(s, 128, activation=tf.nn.relu, name='l1', trainable=trainable)#原始是30
             net_1 = tf.layers.dense(net_0, 128, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
