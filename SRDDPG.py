@@ -15,11 +15,11 @@ LR_C = 0.0025    # learning rate for critic
 LR_D = 0.001
 GAMMA = 0.99    # reward discount
 TAU = 0.01  # soft replacement
-MEMORY_CAPACITY = 50000
+MEMORY_CAPACITY = 500
 BATCH_SIZE = 256
 
-RENDER = True
-
+RENDER = False
+t1 = time.time()
 # ENV_NAME = 'CartPole-v2'
 env = dreamer()
 # env = gym.make(ENV_NAME)
@@ -47,7 +47,7 @@ class DDPG(object):
         self.LR_D = tf.placeholder(tf.float32, None, 'LR_D')
 
         self.a = self._build_a(self.S,)# 这个网络用于及时更新参数
-        self.d = self._build_d(self.S, )  # 这个网络用于及时更新参数
+        self.d = self._build_d(self.S,)  # 这个网络用于及时更新参数
         q = self._build_c(self.S, self.a, self.d)# 这个网络是用于及时更新参数
         a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor')
         c_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Critic')
@@ -70,7 +70,7 @@ class DDPG(object):
         a_loss = - tf.reduce_mean(q-q_lambda)  # maximize the q
         d_loss = tf.reduce_mean(q)
         self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
-        self.dtrain = tf.train.AdamOptimizer(self.LR_D).minimize(d_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
+        self.dtrain = tf.train.AdamOptimizer(self.LR_D).minimize(d_loss, var_list=d_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
         self.labda_ = self.labda+0.01*(q-q_+self.R+self.d*self.d)
         with tf.control_dependencies(target_update):    # soft replacement happened at here
             q_target = self.R + GAMMA * q_ + beta* self.d*self.d
@@ -95,11 +95,16 @@ class DDPG(object):
         bd = bt[:, self.s_dim+ self.a_dim: self.s_dim + 2*self.a_dim]
         br = bt[:, -self.s_dim - 1: -self.s_dim]
         bs_ = bt[:, -self.s_dim:]
+        # print('start', time.time() - t1)
         self.sess.run(self.atrain, {self.S: bs,self.S_: bs_,self.LR_A:LR_A})
+        # print('actor',time.time() - t1)
         # self.sess.run(self.dtrain, {self.S: bs, self.LR_D: LR_D})
         self.sess.run(self.ctrain, {self.S: bs, self.a: ba, self.R: br, self.S_: bs_,self.LR_C:LR_C})
+        # print('critic',time.time() - t1)
         self.sess.run(self.labda_, {self.S: bs, self.a: ba, self.R: br, self.S_: bs_,self.d: bd})
+        # print('lambda step 1',time.time() - t1)
         self.labda=tf.maximum(self.labda_,0)
+        # print('lambda step 2',time.time() - t1)
 
     def store_transition(self, s, a, d, r, s_):
         transition = np.hstack((s, a, d,[r], s_))
@@ -132,10 +137,10 @@ class DDPG(object):
     def _build_d(self, s, reuse=None, custom_getter=None):
         trainable = True if reuse is None else False
         with tf.variable_scope('Disturber', reuse=reuse, custom_getter=custom_getter):
-            net_0 = tf.layers.dense(s, 128, activation=tf.nn.relu, name='l1', trainable=trainable)#原始是30
-            net_1 = tf.layers.dense(net_0, 128, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
-            net_2 = tf.layers.dense(net_1, 64, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
-            a = tf.layers.dense(net_2, self.a_dim, activation=tf.nn.tanh, name='a', trainable=trainable)
+            net_0 = tf.layers.dense(s, 128, activation=tf.nn.relu, name='l4', trainable=trainable)#原始是30
+            net_1 = tf.layers.dense(net_0, 128, activation=tf.nn.relu, name='l5', trainable=trainable)  # 原始是30
+            net_2 = tf.layers.dense(net_1, 64, activation=tf.nn.relu, name='l6', trainable=trainable)  # 原始是30
+            a = tf.layers.dense(net_2, self.a_dim, activation=tf.nn.tanh, name='d', trainable=trainable)
             # return tf.multiply(a, self.a_bound/10, name='scaled_d')
             return tf.multiply(a, 0, name='scaled_d')
 
@@ -198,7 +203,6 @@ for i in range(MAX_EPISODES):
             # LR_A *= .99995
             # LR_C *= .99995
             ddpg.learn(LR_A,LR_C,LR_D)
-
         s = s_
         ep_reward += r
         if j == MAX_EP_STEPS - 1:
