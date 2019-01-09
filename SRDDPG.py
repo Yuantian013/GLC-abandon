@@ -6,8 +6,6 @@ import time
 from cartpole_clean import CartPoleEnv_adv as real_env
 from cartpole_uncertainty import CartPoleEnv_adv as dreamer
 import os
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 50000
@@ -74,7 +72,7 @@ class DDPG(object):
         a_loss = - tf.reduce_mean(q)+q_lambda  # maximize the q
         d_loss = tf.reduce_mean(q)
         self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
-        self.dtrain = tf.train.AdamOptimizer(self.LR_D).minimize(d_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
+        self.dtrain = tf.train.AdamOptimizer(self.LR_D).minimize(d_loss, var_list=d_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
         self.labda_ = self.labda+0.01*tf.reduce_mean(q-q_cons) #(q-q_+self.R+self.d*self.d)
         with tf.control_dependencies(target_update):    # soft replacement happened at here
             q_target = self.R + GAMMA * q_ + beta* self.d*self.d
@@ -220,7 +218,7 @@ for i in range(MAX_EPISODES):
         if j == MAX_EP_STEPS - 1:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
-            print('Episode:', i, ' Reward: %i' % int(ep_reward), 'Explore: %.2f' % var,"good","EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A)
+            print('Episode:', i, ' Reward: %i' % int(ep_reward), 'Explore: %.2f' % var,"good","EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,'Running time: ', time.time() - t1)
             if EWMA_reward[0,i+1]>max_ewma_reward:
                 max_ewma_reward=EWMA_reward[0,i+1]
                 LR_A *= .9  # learning rate for actor
@@ -246,10 +244,10 @@ for i in range(MAX_EPISODES):
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             if hit==1:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward), 'Explore: %.2f' % var, "break in : ", j, "due to ",
-                      "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A)
+                      "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,'Running time: ', time.time() - t1)
             else:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward), 'Explore: %.2f' % var, "break in : ", j, "due to",
-                      "fall down","EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A)
+                      "fall down","EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,'Running time: ', time.time() - t1)
             win=0
             break
 
