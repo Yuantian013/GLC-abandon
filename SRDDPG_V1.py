@@ -130,7 +130,7 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_V1.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V2.ckpt")
         print("Save to path: ", save_path)
 
 

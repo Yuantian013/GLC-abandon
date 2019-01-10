@@ -130,7 +130,7 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_V2.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V3.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -147,8 +147,8 @@ var = 5  # control exploration
 t1 = time.time()
 win=0
 winmax=1
-max_reward=180000
-max_ewma_reward=120000
+max_reward=400000
+max_ewma_reward=200000
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
@@ -206,13 +206,13 @@ for i in range(MAX_EPISODES):
             #     ddpg.save_result()
             # break
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,250000)
+                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,450000)
                 LR_A *= .5  # learning rate for actor
                 LR_C *= .5  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
-                max_reward = min(ep_reward+5000,250000)
+                max_reward = min(ep_reward+5000,450000)
                 LR_A *= .5  # learning rate for actor
                 LR_C *= .5  # learning rate for critic
                 ddpg.save_result()
