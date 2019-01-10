@@ -98,9 +98,9 @@ class CartPoleEnv_adv(gym.Env):
 
     def step(self, action, i):
         a = 0
-        # self.gravity = np.random.normal(10, 1)
-        # self.masscart = np.random.normal(1, 0.1)
-        # self.masspole = np.random.normal(0.1, 0.01)
+        self.gravity = np.random.normal(10, 2)
+        self.masscart = np.random.normal(1, 0.2)
+        self.masspole = np.random.normal(0.1, 0.02)
         self.total_mass = (self.masspole + self.masscart)
         state = self.state
         x, x_dot, theta, theta_dot = state
@@ -141,12 +141,12 @@ class CartPoleEnv_adv(gym.Env):
         if x < -self.x_threshold \
                 or x > self.x_threshold:
             a = 1
-        r1 = (self.x_threshold - abs(x)) / (self.x_threshold)  # - 0.8
-        r2 = (self.theta_threshold_radians / 4 - abs(theta)) / (self.theta_threshold_radians / 4)  # - 0.5
+        r1 = ((self.x_threshold/5 - abs(x))) / (self.x_threshold/5)  # - 0.8
+        r2 = ((self.theta_threshold_radians / 4) - abs(theta)) / (self.theta_threshold_radians / 4)  # - 0.5
         # cost1=(self.x_threshold - abs(x))/self.x_threshold
         e1 = (abs(x)) / self.x_threshold
         e2 = (abs(theta)) / self.theta_threshold_radians
-        cost = COST_1000(r1, r2, e1, e2, x, x_dot, theta, theta_dot)
+        cost = COST_V1(r1, r2, e1, e2, x, x_dot, theta, theta_dot)
 
         return self.state, cost, done, a
 
@@ -209,4 +209,12 @@ class CartPoleEnv_adv(gym.Env):
 
 def COST_1000(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
     cost = np.sign(r2) * ((10 * r2) ** 2) - 4 * abs(x) ** 2
+    return cost
+
+def COST_V3(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
+    cost = np.sign(r2) * ((10 * r2) ** 2) - abs(x) ** 4
+    return cost
+
+def COST_V1(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
+    cost = np.sign(r2) * ((10 * r2) ** 2)+ np.sign(r1) * ((10 * r1) ** 2)
     return cost
