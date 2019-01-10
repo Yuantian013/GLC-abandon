@@ -206,13 +206,13 @@ for i in range(MAX_EPISODES):
             #     ddpg.save_result()
             # break
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,450000)
+                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
                 LR_A *= .5  # learning rate for actor
                 LR_C *= .5  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
-                max_reward = min(ep_reward+5000,450000)
+                max_reward = min(ep_reward+5000,500000)
                 LR_A *= .5  # learning rate for actor
                 LR_C *= .5  # learning rate for critic
                 ddpg.save_result()
