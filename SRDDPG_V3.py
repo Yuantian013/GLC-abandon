@@ -130,7 +130,7 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_V3.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V2.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -206,20 +206,22 @@ for i in range(MAX_EPISODES):
             #     ddpg.save_result()
             # break
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
-                LR_A *= .5  # learning rate for actor
-                LR_C *= .5  # learning rate for critic
+                # max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
+                max_ewma_reward = EWMA_reward[0, i + 1]
+                LR_A *= .9  # learning rate for actor
+                LR_C *= .9  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
-                max_reward = min(ep_reward+5000,500000)
-                LR_A *= .5  # learning rate for actor
-                LR_C *= .5  # learning rate for critic
+                # max_reward = min(ep_reward+5000,500000)
+                max_reward=ep_reward
+                LR_A *= .9  # learning rate for actor
+                LR_C *= .9  # learning rate for critic
                 ddpg.save_result()
                 print("max_reward : ",ep_reward)
             else:
-                LR_A *= .95
-                LR_C *= .95
+                LR_A *= .99
+                LR_C *= .99
             break
 
         elif done:
