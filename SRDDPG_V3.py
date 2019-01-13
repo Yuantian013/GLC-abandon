@@ -130,7 +130,8 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_V2.ckpt")
+        # save_path = self.saver.save(self.sess, "Model/SRDDPG_V3_.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_BAD.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -142,7 +143,7 @@ a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
 
 ddpg = DDPG(a_dim, s_dim, a_bound)
-
+ddpg.save_result()
 var = 5  # control exploration
 t1 = time.time()
 win=0
@@ -206,17 +207,15 @@ for i in range(MAX_EPISODES):
             #     ddpg.save_result()
             # break
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                # max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
-                max_ewma_reward = EWMA_reward[0, i + 1]
-                LR_A *= .9  # learning rate for actor
-                LR_C *= .9  # learning rate for critic
+                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
+                LR_A *= .8  # learning rate for actor
+                LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
-                # max_reward = min(ep_reward+5000,500000)
-                max_reward=ep_reward
-                LR_A *= .9  # learning rate for actor
-                LR_C *= .9  # learning rate for critic
+                max_reward = min(ep_reward+5000,500000)
+                LR_A *= .8  # learning rate for actor
+                LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
                 print("max_reward : ",ep_reward)
             else:

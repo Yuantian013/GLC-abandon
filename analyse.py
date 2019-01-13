@@ -11,7 +11,7 @@ import scipy.io as scio
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 2000
-MAX_EP_STEPS = 1000
+MAX_EP_STEPS = 400
 LR_A = 0.001    # learning rate for actor
 LR_C = 0.002    # learning rate for critic
 GAMMA = 0.9     # reward discount
@@ -45,7 +45,7 @@ class DDPG(object):
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
-        self.saver.restore(self.sess, "Model/SRDDPG_V3.ckpt")  # 1 0.1 0.5 0.001
+        self.saver.restore(self.sess, "Model/SRDDPG_V3_IN_DREAM.ckpt")  # 1 0.1 0.5 0.001
 
     def choose_action(self, s):
         return self.sess.run(self.a, {self.S: s[np.newaxis, :]})[0]
@@ -115,6 +115,7 @@ for i in range(MAX_EPISODES):
             else:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward), "break in : ", j, "due to",
                       "fall down")
+            break
     print("Saved")
     scio.savemat('QR',
                               {'Q': Q,
