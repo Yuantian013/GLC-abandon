@@ -5,7 +5,7 @@ from cartpole_uncertainty import CartPoleEnv_adv as dreamer
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
-
+import math
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 50000
@@ -162,7 +162,7 @@ class Dreamer(object):
             return tf.layers.dense(net_2, 1, trainable=trainable)
 
     def save_result(self):
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_D_V1.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_D_V2.ckpt")
         print("Save to path: ", save_path)
 ###############################  training  ####################################
 # env.seed(1)   # 普通的 Policy gradient 方法, 使得回合的 variance 比较大, 所以我们选了一个好点的随机种子
@@ -190,6 +190,7 @@ for i in range(MAX_EPISODES):
     Reward=[]
     R_PRE=[]
     step=[]
+    R_DREAM=[]
     if int(i % 3) == 0:
         ddpg.saver.restore(ddpg.sess, "Model/SRDDPG_V3.ckpt")  # 1 0.1 0.5 0.001
     else:
@@ -204,6 +205,13 @@ for i in range(MAX_EPISODES):
         s_, r, done, hit = env.step(a,i)
         s_pre,r_pre=dreamer.dream(s,a)
         dreamer.store_transition(s, a, r/100, s_)
+
+        x, _, theta, _=s_pre
+        r_1 = ((1 - abs(x)))  # - 0.8
+        r_2 = (((20 * 2 * math.pi / 360) / 4) - abs(theta)) / ((20 * 2 * math.pi / 360) / 4)  # - 0.5
+        reward = np.sign(r_2) * ((10 * r_2) ** 2) + np.sign(r_1) * ((10 * r_1) ** 2)
+        # print(s_,s_pre,reward,r,r_pre*100)
+
 
         if done:
             break
@@ -224,21 +232,23 @@ for i in range(MAX_EPISODES):
         s = s_
         step.append(j)
         Reward.append(r/100)
-        R_PRE.append(r_pre)
+        R_PRE.append(reward/100)
         X_.append(s_[0])
         Theta_.append(s_[2])
         X_PRE.append(s_pre[0])
         Theta__PRE.append(s_pre[2])
+        R_DREAM.append(r_pre)
 
-    if min_loss_r <0.01:
-        plot = True
-
-    if plot:
-        plt.plot(step, X_, 'r', step, X_PRE, 'r--')
-        plt.plot(step, Reward, 'b', step, R_PRE, 'b--')
-        plt.draw()
-        plt.pause(0.0000000000000000000000001)
-    plt.close()
+    # if min_loss_r <0.01:
+    #     plot = True
+    #
+    # if plot:
+    #     plt.plot(step, X_, 'r', step, X_PRE, 'r--')
+    #     plt.plot(step, Reward, 'b', step, R_PRE, 'b--')
+    #     plt.plot(step, R_DREAM,'k--')
+    #     plt.draw()
+    #     plt.pause(0.0000000000000000000000001)
+    # plt.close()
     # LR_D *= .99995
     # LR_R *= .99995
     print('Episode:', i, 'Minimum loss S :',min_loss_s, 'Minimum loss R :',min_loss_r,'LR_D :',LR_D,'LR_R :',LR_R,loss_r)

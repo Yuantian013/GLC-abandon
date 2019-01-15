@@ -2,7 +2,7 @@ import matplotlib
 matplotlib.use('TkAgg')
 import tensorflow as tf
 import numpy as np
-import gym
+import math
 import time
 import matplotlib.pyplot as plt
 import os
@@ -15,8 +15,8 @@ MAX_EPISODES = 50000
 MAX_EP_STEPS =2500
 LR_A = 0.0001    # learning rate for actor
 LR_C = 0.0002    # learning rate for critic
-LR_D = 0.00001
-LR_R = 0.00001
+LR_D = 0.001
+LR_R = 0.001
 GAMMA = 0.99    # reward discount
 TAU = 0.01  # soft replacement
 MEMORY_CAPACITY = 10000
@@ -214,6 +214,7 @@ class Dreamer(object):
     def save_result(self):
         save_path = self.saver.save(self.sess, "Model/SRDDPG_D_ONLINE.ckpt")
         print("Save to path: ", save_path)
+
 ###############################  training  ####################################
 # env.seed(1)   # 普通的 Policy gradient 方法, 使得回合的 variance 比较大, 所以我们选了一个好点的随机种子
 
@@ -243,13 +244,20 @@ for i in range(MAX_EPISODES):
 
         #判断死没死
         s1_, r1, done, hit = env.step(a,i)
-        s_, r = env_dream.dream(s, a)
-        #得分修正
-        r=r*100
+        s_, r_d = env_dream.dream(s, a)
 
-        ddpg.store_transition(s, a, (r/10)[0], s_)
-        if Dreamer_update:
-            env_dream.store_transition(s, a, r1 / 100, s1_)
+        #得分修正
+        r_d=r_d*100
+
+        # x, _, theta, _=s_
+        # r_1 = ((1 - abs(x)))  # - 0.8
+        # r_2 = (((20 * 2 * math.pi / 360) / 4) - abs(theta)) / ((20 * 2 * math.pi / 360) / 4)  # - 0.5
+        # reward = np.sign(r_2) * ((10 * r_2) ** 2) + np.sign(r_1) * ((10 * r_1) ** 2)
+
+
+        ddpg.store_transition(s, a, (r_d/10)[0], s_)
+        # ddpg.store_transition(s, a, (reward / 10), s_)
+        env_dream.store_transition(s, a, r1 / 100, s1_)
 
         #DDPG LEARN
         if ddpg.pointer > MEMORY_CAPACITY:
@@ -277,10 +285,18 @@ for i in range(MAX_EPISODES):
                     LR_R *= (loss_r / min_loss_r)
                     min_loss_r = loss_r
                     env_dream.save_result()
+        # elif Dreamer_update==False:
+        #     if env_dream.pointer > MEMORY_CAPACITY:
+        #        loss_s, loss_r = env_dream.apply()
+        #        if loss_s < min_loss_s:
+        #            LR_D *= (loss_s / min_loss_s)
+        #            min_loss_s = loss_s
+        #        if loss_r < min_loss_r:
+        #            LR_R *= (loss_r / min_loss_r)
+        #            min_loss_r = loss_r
 
-        env.state = s_
         s = s_
-        ep_reward += r
+        ep_reward += r_d
         EP_REWARD += r1
         if j == MAX_EP_STEPS - 1:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j

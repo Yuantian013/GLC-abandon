@@ -130,7 +130,7 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_V2.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V3_.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -142,12 +142,12 @@ a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
 
 ddpg = DDPG(a_dim, s_dim, a_bound)
-
+ddpg.save_result()
 var = 5  # control exploration
 t1 = time.time()
 win=0
 winmax=1
-max_reward=350000
+max_reward=400000
 max_ewma_reward=200000
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
@@ -164,7 +164,7 @@ for i in range(MAX_EPISODES):
         a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
         #if var<0.01:
             #a=np.clip(np.random.normal(a, a_bound), -a_bound, a_bound)
-        s_, r, done, hit = env.step(a,i)
+        s_, r, done, hit = env.step(a)
 
         ddpg.store_transition(s, a, r/10, s_)
 
@@ -206,20 +206,20 @@ for i in range(MAX_EPISODES):
             #     ddpg.save_result()
             # break
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,250000)
-                LR_A *= .5  # learning rate for actor
-                LR_C *= .5  # learning rate for critic
+                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
+                LR_A *= .8  # learning rate for actor
+                LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
-                max_reward = min(ep_reward+5000,250000)
-                LR_A *= .5  # learning rate for actor
-                LR_C *= .5  # learning rate for critic
+                max_reward = min(ep_reward+5000,500000)
+                LR_A *= .8  # learning rate for actor
+                LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
                 print("max_reward : ",ep_reward)
             else:
-                LR_A *= .95
-                LR_C *= .95
+                LR_A *= .99
+                LR_C *= .99
             break
 
         elif done:

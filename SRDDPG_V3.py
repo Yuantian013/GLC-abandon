@@ -130,8 +130,7 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        # save_path = self.saver.save(self.sess, "Model/SRDDPG_V3_.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_BAD.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V3_.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -165,7 +164,7 @@ for i in range(MAX_EPISODES):
         a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
         #if var<0.01:
             #a=np.clip(np.random.normal(a, a_bound), -a_bound, a_bound)
-        s_, r, done, hit = env.step(a,i)
+        s_, r, done, hit = env.step(a)
 
         ddpg.store_transition(s, a, r/10, s_)
 
