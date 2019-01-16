@@ -193,8 +193,10 @@ for i in range(MAX_EPISODES):
     R_DREAM=[]
     if int(i % 3) == 0:
         ddpg.saver.restore(ddpg.sess, "Model/SRDDPG_V3.ckpt")  # 1 0.1 0.5 0.001
+    elif int(i % 5) == 0:
+        ddpg.saver.restore(ddpg.sess, "Model/SRDDPG_IN_DREAM_0.5.ckpt")  # 1 0.1 0.5 0.001
     else:
-        ddpg.saver.restore(ddpg.sess, "Model/SRDDPG_BAD.ckpt")  # 1 0.1 0.5 0.001
+        ddpg.saver.restore(ddpg.sess, "Model/SRDDPG_INITIAL.ckpt")  # 1 0.1 0.5 0.001
 
     for j in range(MAX_EP_STEPS):
         if RENDER:
@@ -202,7 +204,7 @@ for i in range(MAX_EPISODES):
         # Add exploration noise
         a = ddpg.choose_action(s)
         a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
-        s_, r, done, hit = env.step(a,i)
+        s_, r, done, hit = env.step(a)
         s_pre,r_pre=dreamer.dream(s,a)
         dreamer.store_transition(s, a, r/100, s_)
 

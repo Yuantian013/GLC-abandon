@@ -28,7 +28,7 @@ labda=10.
 tol = 0.001
 
 RENDER = True
-Dreamer_update=False
+Dreamer_update=True
 REAL_SCORE=True
 print("Dreamer_update = ",Dreamer_update," , REAL_SCORE = ",REAL_SCORE)
 env = dreamer()
@@ -142,7 +142,7 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_IN_DREAM_0.5.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_IN_DREAM_ONLINE_V1.ckpt")
         print("Save to path: ", save_path)
 ###############################  DREAMER  ####################################
 class Dreamer(object):
@@ -345,7 +345,7 @@ for i in range(MAX_EPISODES):
         #DDPG LEARN
         if ddpg.pointer > MEMORY_CAPACITY:
             # Decay the action randomness
-            var *= .9999
+            var *= .99999
             l_q,l_r=ddpg.learn(LR_A,LR_C,labda)
 
             if l_q>tol:
