@@ -5,7 +5,7 @@ import numpy as np
 import gym
 import time
 import matplotlib.pyplot as plt
-from cartpole_uncertainty import CartPoleEnv_adv as dreamer
+from cartpole_clean import CartPoleEnv_adv as dreamer
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -67,7 +67,10 @@ class DDPG(object):
         q_ = self._build_c(self.S_, tf.stop_gradient(a_), reuse=True, custom_getter=ema_getter)
         self.q_cons = self._build_c(self.S_, a_cons, reuse=True)
 
-        self.q_lambda =tf.reduce_mean(self.q - self.q_cons)
+        beta=0.5
+
+        self.q_lambda =tf.reduce_mean(self.q - self.q_cons)+beta*tf.reduce_sum(self.S*self.S)
+
         # self.q_lambda = tf.reduce_mean(self.q_cons - self.q)
 
         a_loss = - tf.reduce_mean(self.q) + self.labda * self.q_lambda  # maximize the q
@@ -130,7 +133,8 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_V3_.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V5.ckpt")
+        # save_path = self.saver.save(self.sess, "Model/SRDDPG_INITIAL.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -207,19 +211,19 @@ for i in range(MAX_EPISODES):
             # break
             if EWMA_reward[0,i+1]>max_ewma_reward:
                 max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
-                LR_A *= .8  # learning rate for actor
-                LR_C *= .8  # learning rate for critic
+                LR_A *= .6  # learning rate for actor
+                LR_C *= .6  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
                 max_reward = min(ep_reward+5000,500000)
-                LR_A *= .8  # learning rate for actor
-                LR_C *= .8  # learning rate for critic
+                LR_A *= .7  # learning rate for actor
+                LR_C *= .7  # learning rate for critic
                 ddpg.save_result()
                 print("max_reward : ",ep_reward)
             else:
-                LR_A *= .99
-                LR_C *= .99
+                LR_A *= .95
+                LR_C *= .95
             break
 
         elif done:

@@ -1,7 +1,9 @@
 import tensorflow as tf
 import numpy as np
 import time
-from cartpole_uncertainty import CartPoleEnv_adv as dreamer
+from cartpole_uncertainty import CartPoleEnv_adv as real_env
+from cartpole_clean import CartPoleEnv_adv as dream
+
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
@@ -15,7 +17,7 @@ LR_R = 0.001
 MEMORY_CAPACITY = 10000
 BATCH_SIZE = 128
 RENDER = False
-env = dreamer()
+env = real_env()
 
 env = env.unwrapped
 ###############################  DDPG  ####################################

@@ -6,7 +6,8 @@ import gym
 import time
 import csv
 import matplotlib.pyplot as plt
-from cartpole_uncertainty import CartPoleEnv_adv as real_env
+from cartpole_uncertainty import CartPoleEnv_adv as real_env_uncertainty
+from cartpole_uncertainty import CartPoleEnv_adv as real_env_clean
 import scipy.io as scio
 #####################  hyper parameters  ####################
 
@@ -21,7 +22,8 @@ BATCH_SIZE = 32
 
 RENDER = True
 # ENV_NAME = 'CartPole-v2'
-env = real_env()
+# env = real_env_uncertainty()
+env = real_env_clean()
 # env = gym.make(ENV_NAME)
 env = env.unwrapped
 ###############################  DDPG  ####################################
@@ -45,7 +47,9 @@ class DDPG(object):
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
-        self.saver.restore(self.sess, "Model/SRDDPG_IN_DREAM_ONLINE_V1.ckpt")  # 1 0.1 0.5 0.001
+        # self.saver.restore(self.sess, "Model/SRDDPG_V3.ckpt")  # 扰动的最好模型
+        self.saver.restore(self.sess, "Model/Group_V1.ckpt")  # 扰动的最好模型
+        # self.saver.restore(self.sess, "Model/SRDDPG_V5.ckpt")  # 无扰动的最好模型
 
     def choose_action(self, s):
         return self.sess.run(self.a, {self.S: s[np.newaxis, :]})[0]
@@ -97,7 +101,9 @@ for i in range(MAX_EPISODES):
     for j in range(MAX_EP_STEPS):
         if RENDER:
             env.render()
+        # print('start',time.time() - t1)
         a = ddpg.choose_action(s)
+        # print('end', time.time() - t1)
         # a = np.clip(np.random.normal(a, 3.5), -a_bound, a_bound)
         s_, r, done, hit = env.step(a)
         # print(r)

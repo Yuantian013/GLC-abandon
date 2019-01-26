@@ -12,6 +12,8 @@ from gym.utils import seeding
 from cartpole_uncertainty import CartPoleEnv_adv as dreamer
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+#####################  BEST MODEL  ####################
+"Model/SRDDPG_IN_DREAM_ONLINE_V2.ckpt"
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 50000
