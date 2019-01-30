@@ -47,8 +47,8 @@ class DDPG(object):
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
-        # self.saver.restore(self.sess, "Model/SRDDPG_V3.ckpt")  # 扰动的最好模型
-        self.saver.restore(self.sess, "Model/Group_V1.ckpt")  # 扰动的最好模型
+        self.saver.restore(self.sess, "Model/SRDDPG_V3.ckpt")  # 扰动的最好模型
+        # self.saver.restore(self.sess, "Model/Group_V1.ckpt")  # 扰动的最好模型
         # self.saver.restore(self.sess, "Model/SRDDPG_V5.ckpt")  # 无扰动的最好模型
 
     def choose_action(self, s):
@@ -98,29 +98,31 @@ R=np.zeros(MAX_EP_STEPS)
 for i in range(MAX_EPISODES):
     s = env.reset()
     ep_reward = 0
+    T=0
     for j in range(MAX_EP_STEPS):
         if RENDER:
             env.render()
-        # print('start',time.time() - t1)
+        ts=time.time()
         a = ddpg.choose_action(s)
-        # print('end', time.time() - t1)
+        te=time.time()
         # a = np.clip(np.random.normal(a, 3.5), -a_bound, a_bound)
         s_, r, done, hit = env.step(a)
         # print(r)
         Q[j],R[j]=ddpg.show_q(s,a,r)
         s = s_
         ep_reward += r
+        T += (te-ts)
         if j == MAX_EP_STEPS - 1:
 
-            print('Episode:', i, ' Reward: %i' % int(ep_reward))
+            print('Episode:', i, ' Reward: %i' % int(ep_reward),'t:',T/(j+1))
 
         elif done:
             if hit==1:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward), "break in : ", j, "due to ",
-                      "hit the wall")
+                      "hit the wall",'t:',T/(j+1))
             else:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward), "break in : ", j, "due to",
-                      "fall down")
+                      "fall down",'t:',T/(j+1))
             break
     print("Saved")
     scio.savemat('QR',

@@ -2,7 +2,6 @@ import matplotlib
 matplotlib.use('TkAgg')
 import tensorflow as tf
 import numpy as np
-import gym
 import time
 import matplotlib.pyplot as plt
 from cartpole_uncertainty import CartPoleEnv_adv as dreamer

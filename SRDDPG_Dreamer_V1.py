@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import time
 from cartpole_uncertainty import CartPoleEnv_adv as real_env
-from cartpole_linear import CartPoleEnv_adv as linear_env
+from cartpole_disturb import CartPoleEnv_adv as linear_env
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
@@ -112,21 +112,6 @@ class Dreamer(object):
         self.force_mag = 20
         self.tau = 0.02  # seconds between state updates
 
-        # x, x_dot, theta, theta_dot = self.S[0][0],self.S[0][1],self.S[0][2],self.S[0][3],
-        # force = self.A[0][0]
-        # costheta = 1
-        # sintheta = theta
-        # temp = np.random.normal((force + self.polemass_length * theta_dot * theta_dot * sintheta) / self.total_mass, 0)
-        # thetaacc = np.random.normal((self.gravity * sintheta - costheta * temp) / (
-        #         self.length * (4.0 / 3.0 - self.masspole * costheta * costheta / self.total_mass)), 0)
-        # xacc = np.random.normal(temp - self.polemass_length * thetaacc * costheta / self.total_mass, 0)
-        #
-        # x_ = x + self.tau * x_dot
-        # x_dot_ = x_dot + self.tau * xacc
-        # theta_ = theta + self.tau * theta_dot
-        # theta_dot_ = theta_dot + self.tau * thetaacc
-        # self.s_linear = [x_, x_dot_, theta_, theta_dot_]
-
         #Learning Part
         self.dreamer = self._build_dreamer(self.S, self.A,self.S_L) #S_=linear_model+DNN=S_L+DNN(S,A)
 
@@ -138,7 +123,7 @@ class Dreamer(object):
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
-        self.saver.restore(self.sess, "Model/SRDDPG_Dreamer_V1.ckpt")  # 1 0.1 0.5 0.001
+        # self.saver.restore(self.sess, "Model/SRDDPG_Dreamer_V1.ckpt")  # 1 0.1 0.5 0.001
 
     def dream(self, s,a,s_l):
         return self.sess.run(self.dreamer, {self.S: s[np.newaxis, :],self.A: a[np.newaxis, :],self.S_L:s_l[np.newaxis,:]})[0]
@@ -279,8 +264,8 @@ for i in range(MAX_EPISODES):
         X_L.append(s_linear_[0])
         Theta_L.append(s_linear_[2])
 
-    if min_loss_s <0.0005:
-        plot = True
+    # if min_loss_s <0.0005:
+    #     plot = True
 
     if plot:
         plt.plot(step, X_, 'r', step, X_PRE, 'r--')
