@@ -10,7 +10,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 #####################  hyper parameters  ####################
 
-MAX_EPISODES = 50000
+MAX_EPISODES = 2000
 MAX_EP_STEPS =2500
 LR_A = 0.0001    # learning rate for actor
 LR_C = 0.0002    # learning rate for critic

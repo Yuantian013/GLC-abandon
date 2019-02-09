@@ -1,2 +1,2 @@
-model_checkpoint_path: "SRDDPG_In_Dream.ckpt"
-all_model_checkpoint_paths: "SRDDPG_In_Dream.ckpt"
+model_checkpoint_path: "SRDDPG_V3_.ckpt"
+all_model_checkpoint_paths: "SRDDPG_V3_.ckpt"

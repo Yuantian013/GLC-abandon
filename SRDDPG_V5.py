@@ -1,3 +1,4 @@
+# Useful Package
 import matplotlib
 matplotlib.use('TkAgg')
 import tensorflow as tf
@@ -6,8 +7,13 @@ import time
 from cartpole_disturb import CartPoleEnv_adv as dreamer
 import os
 import math
+# For GPU
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+#####################  备忘  ###################
+#Lambda更新
+#Disturb训练方式
 #####################  hyper parameters  ####################
 MAX_EPISODES = 50000
 MAX_EP_STEPS =2500
@@ -22,7 +28,7 @@ labda=10.
 tol = 0.001
 
 # Function switch
-RENDER  = True
+RENDER  = False
 DISTURB = True
 DREAMER = True
 
@@ -37,12 +43,13 @@ iteration=np.zeros((1,MAX_EPISODES+1))
 # Training setting
 var = 5  # control exploration
 t1 = time.time()
-max_reward=100000
-max_ewma_reward=50000
+
+max_reward=400000
+max_ewma_reward=200000
 
 ###############################  DDPG  ####################################
 class DDPG(object):
-    def __init__(self, a_dim, s_dim, a_bound,):
+    def __init__(self, a_dim, s_dim, a_bound,disturb_switch):
         ###############################  Model parameters  ####################################
         self.memory = np.zeros((MEMORY_CAPACITY, s_dim * 2 + a_dim + 3), dtype=np.float32)
         self.pointer = 0
@@ -59,6 +66,7 @@ class DDPG(object):
         self.a = self._build_a(self.S, )  # 这个网络用于及时更新参数
         self.d = self._build_d(self.S, )  # 这个网络用于及时更新参数
         self.q = self._build_c(self.S, self.a, self.d)  # 这个网络是用于及时更新参数
+        self.DISTURB=disturb_switch
         a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Actor')
         c_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Critic')
         d_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Disturber')
@@ -116,7 +124,9 @@ class DDPG(object):
         br = bt[:, -self.s_dim - 1: -self.s_dim]
         bs_ = bt[:, -self.s_dim:]
 
-        self.sess.run(self.dtrain, {self.S: bs, self.LR_D: LR_D})
+        if self.DISTURB:
+           self.sess.run(self.dtrain, {self.S: bs, self.LR_D: LR_D})
+
         self.sess.run(self.atrain, {self.S: bs, self.S_: bs_, self.LR_A: LR_A, self.labda: labda})
         self.sess.run(self.ctrain,
                       {self.S: bs, self.a: ba, self.R: br, self.S_: bs_,self.LR_C: LR_C, self.d: bd})
@@ -163,10 +173,10 @@ class DDPG(object):
             net_2 = tf.layers.dense(net_1, 512, activation=tf.nn.relu, name='l3', trainable=trainable)
             net_3 = tf.layers.dense(net_2, 256, activation=tf.nn.relu, name='l4', trainable=trainable)
             d = tf.layers.dense(net_3, self.s_dim/2, activation=tf.nn.tanh, name='d', trainable=trainable)
-            return tf.multiply(d, [x_threshold/200,theta_threshold_radians/200], name='scaled_d')
+            return tf.multiply(d, [x_threshold/500,theta_threshold_radians/500], name='scaled_d')
 
     def save_result(self):
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_In_Dream.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_In_Dream_WITHOUT_D.ckpt")
         print("Save to path: ", save_path)
 ###############################  DREAMER  ####################################
 class Dreamer(object):
@@ -216,9 +226,9 @@ class Dreamer(object):
         self.saver.restore(self.sess, "Model/SRDDPG_Dreamer_V1.ckpt")  # 1 0.1 0.5 0.001
 
     def dream(self, s,a,d):
-        self.gravity = np.random.normal(10, 0.1)
-        self.masscart = np.random.normal(1, 0.1)
-        self.masspole = np.random.normal(0.1, 0.01)
+        # self.gravity = np.random.normal(10, 0.1)
+        # self.masscart = np.random.normal(1, 0.1)
+        # self.masspole = np.random.normal(0.1, 0.01)
         x, x_dot, theta, theta_dot = s
         force = a[0]
         costheta = 1
@@ -286,7 +296,6 @@ class Dreamer(object):
             net_2 = tf.layers.dense(net_1, 256, activation=tf.nn.relu, name='l3', trainable=trainable)
             return tf.layers.dense(net_2, self.s_dim, trainable=trainable)+s_linear
 
-
     def save_result(self):
         save_path = self.saver.save(self.sess, "Model/SRDDPG_Dreamer_V2.ckpt")
         print("Save to path: ", save_path)
@@ -342,23 +351,19 @@ class Dreamer(object):
             self.viewer.close()
             self.viewer = None
 ###############################  INITIALIZE  ####################################
-# For get hit or die info
 env = dreamer()
 env = env.unwrapped
 s_dim = env.observation_space.shape[0]
 a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
-
 env_dream=Dreamer(a_dim, s_dim, a_bound)
-
-ddpg = DDPG(a_dim, s_dim, a_bound)
+ddpg = DDPG(a_dim, s_dim, a_bound,DISTURB)
 ###############################  TRAINING  ####################################
 # env.seed(1)   # 普通的 Policy gradient 方法, 使得回合的 variance 比较大, 所以我们选了一个好点的随机种子
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
-    DREAM_REWARD = 0
-    REAL_REWARD = 0
+    REWARD = 0
     for j in range(MAX_EP_STEPS):
 
 
@@ -376,30 +381,30 @@ for i in range(MAX_EPISODES):
 
 
         if DISTURB:
+            # Choose disturb
+            # Add exploration noise
             d = ddpg.choose_disturb(s)
             d = np.random.normal(d, abs(d * 0.02 * var))  # add randomness to disturb selection for exploration
         else:
             d=[0,0]
+
+
         # RUN IN REAL IN TO GET INFORMATION OF DIE OR NOT
         # IF Dreamer_update=True, GET INFORMATION OF THE S,A,R1,S_
         # 得到的是真实的 s,a->s_ 和 r
         # 主要是判断是否游戏结束
-        # r_real是s_real的函数
         s_, r, done, hit = env.step(a,d)             # S_=ENV(S,A), R=REWARD(S_)
 
         # RUN IN DREAM
         # 得到的是梦境中的s,a->s_dream 和 r_dream
-
-
+        # 如果在梦境，那么s_next 和 reward 就被梦境值覆盖
         s_next=s_
         reward=r
-
-        #
         if DREAMER:
             s_next, reward = env_dream.dream(s,a,d)
 
 
-        #储存s,a和梦境中的s_dream,r_dream用于DDPG的学习
+        #储存s,a和s_next,reward用于DDPG的学习
         ddpg.store_transition(s, a, d,(reward / 10), s_next)
 
         #DDPG LEARN
@@ -423,13 +428,13 @@ for i in range(MAX_EPISODES):
         env.state = s_next
 
         # 计算总得分
-        DREAM_REWARD += reward
+        REWARD += reward
 
-        # OUTPUT TRAINING INFORMATION
+        # OUTPUT TRAINING INFORMATION AND LEARNING RATE DECAY
         if j == MAX_EP_STEPS - 1:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
-            EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*DREAM_REWARD
-            print('Episode:', i, ' Reward: %i' % int(DREAM_REWARD),'Explore: %.2f' % var,"good","EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,'lambda',labda,'LR_D :',LR_D)
+            EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*REWARD
+            print('Episode:', i, ' Reward: %i' % int(REWARD),'Explore: %.2f' % var,"good","EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,'lambda',labda,'LR_D :',LR_D)
             if EWMA_reward[0,i+1]>max_ewma_reward:
                 max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
                 LR_A *= .8  # learning rate for actor
@@ -437,13 +442,13 @@ for i in range(MAX_EPISODES):
                 LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
 
-            if DREAM_REWARD> max_reward:
-                max_reward = min(DREAM_REWARD+5000,500000)
+            if REWARD> max_reward:
+                max_reward = min(REWARD+5000,500000)
                 LR_A *= .8  # learning rate for actor
                 LR_D *= .8  # learning rate for disturb
                 LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
-                print("max_reward : ",DREAM_REWARD)
+                print("max_reward : ",REWARD)
             else:
                 LR_A *= .99
                 LR_D *= .99
@@ -451,12 +456,12 @@ for i in range(MAX_EPISODES):
             break
         elif done:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
-            EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*DREAM_REWARD
+            EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*REWARD
 
             if hit==1:
-                print('Episode:', i, ' Reward: %i' % int(DREAM_REWARD), 'Explore: %.2f' % var, "break in : ", j, "due to ",
+                print('Episode:', i, ' Reward: %i' % int(REWARD), 'Explore: %.2f' % var, "break in : ", j, "due to ",
                       "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,'lambda',labda,'LR_D :',LR_D)
             else:
-                print('Episode:', i, ' Reward: %i' % int(DREAM_REWARD),'Explore: %.2f' % var, "break in : ", j, "due to",
+                print('Episode:', i, ' Reward: %i' % int(REWARD),'Explore: %.2f' % var, "break in : ", j, "due to",
                       "fall down","EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,'lambda',labda,'LR_D :',LR_D)
             break
