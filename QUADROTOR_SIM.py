@@ -3,7 +3,7 @@ import gym
 from gym import spaces, logger
 from gym.utils import seeding
 import numpy as np
-import csv
+from scipy.integrate import odeint
 
 class QUADROTOR():
     """
@@ -79,7 +79,7 @@ class QUADROTOR():
         # for example you can add your controller gains by
         # self.k = 0, and they will be passed into controller.
 
-
+################以下内容还未修改，不过暂时不用到
         self.force_mag = 20
         self.tau = 0.02  # seconds between state updates
         self.kinematics_integrator = 'euler'
@@ -109,8 +109,14 @@ class QUADROTOR():
         self.state = None
 
         self.steps_beyond_done = None
-         
-    def quadEOM(self, t,s, F, M):
+
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
+
+    def quadEOM(self,t,s, F, M):
+
+
         # QUADEOM Solve quadrotor equation of motion
         # quadEOM calculate the derivative of the state vector
         # INPUTS:
@@ -121,21 +127,24 @@ class QUADROTOR():
         # self   -  output from init() and whatever parameters you want to pass in
         #  OUTPUTS:
         # sdot   - 13 x 1, derivative of state vector s
-        self.A = np.array([[0.25, 0, -0.5 / self.arm_length],
+
+
+        self.A = [[0.25, 0, -0.5 / self.arm_length],
                   [0.25, 0.5 / self.arm_length, 0],
                   [0.25, 0, 0.5 / self.arm_length],
-                  [0.25, -0.5 / self.arm_length, 0]])
-        prop_thrusts = np.dot(self.A,np.array([[F],M[0],M[1]]))
+                  [0.25, -0.5 / self.arm_length, 0]]
+
+
+        prop_thrusts = np.dot(self.A, [[F], M[0], M[1]])
 
         prop_thrusts_clamped = np.maximum(np.minimum(prop_thrusts, self.max_F / 4), self.min_F / 4)
-        B = np.array([[1, 1, 1, 1],
+        B = [[1, 1, 1, 1],
              [0, self.arm_length, 0, -self.arm_length],
-             [-self.arm_length, 0, self.arm_length, 0]])
+             [-self.arm_length, 0, self.arm_length, 0]]
 
-        F = np.dot(B[0,:],prop_thrusts_clamped)
+        F = np.dot(B[0],prop_thrusts_clamped)
 
-        M = np.reshape([np.dot(B[1:3,:],prop_thrusts_clamped)[0].tolist(),np.dot(B[1:3,:],prop_thrusts_clamped)[1].tolist(),M[2]],[3])
-
+        M = np.reshape([np.dot(B[1:3],prop_thrusts_clamped)[0],np.dot(B[1:3],prop_thrusts_clamped)[1],M[2]],[3])
 
         # Assign states
         x = s[0]
@@ -151,7 +160,7 @@ class QUADROTOR():
         p = s[10]
         q = s[11]
         r = s[12]
-        quat = np.array([qW,qX,qY,qZ])
+        quat = [qW,qX,qY,qZ]
 
         bRw = QuatToRot(quat)
         wRb = bRw.T
@@ -161,18 +170,18 @@ class QUADROTOR():
         # Angular velocity
         K_quat = 2 #this enforces the magnitude 1 constraint for the quaternion
         quaterror = 1 - (qW*qW + qX*qX+ qY*qY + qZ*qZ)
-        qdot = np.dot(-1/2*np.array([[0., -p, -q, -r],
-                     [p,  0. ,-r,  q],
-                     [q,  r,  0., -p],
-                     [r, -q,  p,  0.]]),quat)+K_quat * quaterror *quat
+        qdot = np.dot(np.multiply( [[0., -p, -q, -r],
+                                    [p,  0. ,-r,  q],
+                                    [q,  r,  0., -p],
+                                    [r, -q,  p,  0.]],-1/2),quat)+np.multiply(K_quat * quaterror,quat)
 
 
         # Angular acceleration
-        omega = np.array([p,q,r])
+        omega = [p,q,r]
         pqrdot   = np.dot(self.invI,(M - np.cross(omega, np.dot(self.I,omega))))
 
         # Assemble sdot
-        sdot = np.zeros([13,1])
+        sdot = np.zeros([13])
         sdot[0]  = xdot
         sdot[1] = ydot
         sdot[2] = zdot
@@ -188,14 +197,12 @@ class QUADROTOR():
         sdot[12] = pqrdot[2]
         return sdot
 
-    def seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
-
-    # def step(self, action):
-    #     sdot = quadEOM(self,t, s, F, M, params);
-    #
-    #     return self.state, done, a
+    def step(self, F,M):
+        time = np.linspace(0, 0.01, 2)
+        s= self.state
+        s_ = odeint(self.quadEOM, s, time, args=(F, M), tfirst=True)
+        self.state=s_[1]
+        return self.state
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.2, high=0.2, size=(4,))
@@ -203,56 +210,6 @@ class QUADROTOR():
         self.steps_beyond_done = None
         return np.array(self.state)
 
-    def render(self, mode='human'):
-        screen_width = 800
-        screen_height = 400
-
-        world_width = self.x_threshold * 2
-        scale = screen_width / world_width
-        carty = 100  # TOP OF CART
-        polewidth = 10.0
-        polelen = scale * 1.0
-        cartwidth = 50.0
-        cartheight = 30.0
-
-        if self.viewer is None:
-            from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
-            l, r, t, b = -cartwidth / 2, cartwidth / 2, cartheight / 2, -cartheight / 2
-            axleoffset = cartheight / 4.0
-            cart = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
-            self.carttrans = rendering.Transform()
-            cart.add_attr(self.carttrans)
-            self.viewer.add_geom(cart)
-            l, r, t, b = -polewidth / 2, polewidth / 2, polelen - polewidth / 2, -polewidth / 2
-            pole = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
-            pole.set_color(.8, .6, .4)
-            self.poletrans = rendering.Transform(translation=(0, axleoffset))
-            pole.add_attr(self.poletrans)
-            pole.add_attr(self.carttrans)
-            self.viewer.add_geom(pole)
-            self.axle = rendering.make_circle(polewidth / 2)
-            self.axle.add_attr(self.poletrans)
-            self.axle.add_attr(self.carttrans)
-            self.axle.set_color(.5, .5, .8)
-            self.viewer.add_geom(self.axle)
-            self.track = rendering.Line((0, carty), (screen_width, carty))
-            self.track.set_color(0, 0, 0)
-            self.viewer.add_geom(self.track)
-
-        if self.state is None: return None
-
-        x = self.state
-        cartx = x[0] * scale + screen_width / 2.0  # MIDDLE OF CART
-        self.carttrans.set_translation(cartx, carty)
-        self.poletrans.set_rotation(-x[2])
-
-        return self.viewer.render(return_rgb_array=mode == 'rgb_array')
-
-    def close(self):
-        if self.viewer:
-            self.viewer.close()
-            self.viewer = None
 
 
 def stateToQd(x):
@@ -272,7 +229,8 @@ def stateToQd(x):
 def QuatToRot(q):
     # QuatToRot Converts a Quaternion to Rotation matrix
     # normalize q
-    q = q/np.sqrt(sum(q*q))
+
+    q = q/np.sqrt(sum(np.multiply(q,q)))
     qahat=np.zeros([3,3])
     qahat[0, 1] = -q[3]
     qahat[0, 2] = q[2]
@@ -314,12 +272,10 @@ def RotToRPY_ZXY(R):
     return [phi,theta,psi]
 
 
-x=np.array([1.5,12.,144.,12.,14.,15.,12.,1.,13.,15.,13.,12.,1.])
-# [pos,vel,euler,omega]=stateToQd(x)
-# print([pos,vel,euler,omega])
+x0=[1.5,12.,144.,12.,14.,15.,12.,1.,13.,15.,13.,12.,1.]
 F=2
-t=1
 M=[[3],[2.5],[1]]
-test=QUADROTOR()
-sdot=test.quadEOM(t,x,F,M)
-print(sdot)
+env=QUADROTOR()
+env.state=x0
+s_=env.step(F,M)
+print(s_)
