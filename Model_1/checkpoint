@@ -1,2 +1,0 @@
-model_checkpoint_path: "SRDDPG_V4.ckpt"
-all_model_checkpoint_paths: "SRDDPG_V4.ckpt"
