@@ -1,2 +1,2 @@
-model_checkpoint_path: "SRDDPG_V3_.ckpt"
-all_model_checkpoint_paths: "SRDDPG_V3_.ckpt"
+model_checkpoint_path: "Quadrotor.ckpt"
+all_model_checkpoint_paths: "Quadrotor.ckpt"
