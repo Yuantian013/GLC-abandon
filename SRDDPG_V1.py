@@ -5,7 +5,7 @@ import numpy as np
 import gym
 import time
 import matplotlib.pyplot as plt
-from cartpole_uncertainty import CartPoleEnv_adv as dreamer
+from cartpole_clean import CartPoleEnv_adv as dreamer
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -13,12 +13,12 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 MAX_EPISODES = 50000
 MAX_EP_STEPS =2500
-LR_A = 0.001    # learning rate for actor
-LR_C = 0.0025    # learning rate for critic
+LR_A = 0.0001    # learning rate for actor
+LR_C = 0.0002    # learning rate for critic
 GAMMA = 0.99    # reward discount
 TAU = 0.01  # soft replacement
-MEMORY_CAPACITY = 50000
-BATCH_SIZE = 256
+MEMORY_CAPACITY = 10000
+BATCH_SIZE = 128
 labda=10.
 RENDER = True
 tol = 0.001
@@ -67,7 +67,10 @@ class DDPG(object):
         q_ = self._build_c(self.S_, tf.stop_gradient(a_), reuse=True, custom_getter=ema_getter)
         self.q_cons = self._build_c(self.S_, a_cons, reuse=True)
 
-        self.q_lambda =tf.reduce_mean(self.q - self.q_cons)
+        beta=0.5
+
+        self.q_lambda =tf.reduce_mean(self.q - self.q_cons)+beta*tf.reduce_sum(self.S*self.S)
+
         # self.q_lambda = tf.reduce_mean(self.q_cons - self.q)
 
         a_loss = - tf.reduce_mean(self.q) + self.labda * self.q_lambda  # maximize the q
@@ -109,27 +112,29 @@ class DDPG(object):
     def _build_a(self, s, reuse=None, custom_getter=None):
         trainable = True
         with tf.variable_scope('Actor', reuse=reuse, custom_getter=custom_getter):
-            net_0 = tf.layers.dense(s, 128, activation=tf.nn.relu, name='l1', trainable=trainable)#原始是30
-            net_1 = tf.layers.dense(net_0, 128, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
-            net_2 = tf.layers.dense(net_1, 64, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
-            a = tf.layers.dense(net_2, self.a_dim, activation=tf.nn.tanh, name='a', trainable=trainable)
+            net_0 = tf.layers.dense(s, 256, activation=tf.nn.relu, name='l1', trainable=trainable)#原始是30
+            net_1 = tf.layers.dense(net_0, 256, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
+            net_2 = tf.layers.dense(net_1, 256, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
+            net_3 = tf.layers.dense(net_2, 128, activation=tf.nn.relu, name='l4', trainable=trainable)  # 原始是30
+            a = tf.layers.dense(net_3, self.a_dim, activation=tf.nn.tanh, name='a', trainable=trainable)
             return tf.multiply(a, self.a_bound, name='scaled_a')
     #critic模块
     def _build_c(self, s, a, reuse=None, custom_getter=None):
         trainable = True if reuse is None else False
         with tf.variable_scope('Critic', reuse=reuse, custom_getter=custom_getter):
-            n_l1 = 128#30
+            n_l1 = 256#30
             w1_s = tf.get_variable('w1_s', [self.s_dim, n_l1], trainable=trainable)
             w1_a = tf.get_variable('w1_a', [self.a_dim, n_l1], trainable=trainable)
             b1 = tf.get_variable('b1', [1, n_l1], trainable=trainable)
             net_0 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
-            net_1 = tf.layers.dense(net_0, 128, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
-            net_2 = tf.layers.dense(net_1, 64, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
-            return tf.layers.dense(net_1, 1, trainable=trainable)  # Q(s,a)
+            net_1 = tf.layers.dense(net_0, 256, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
+            net_2 = tf.layers.dense(net_1, 128, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
+            return tf.layers.dense(net_2, 1, trainable=trainable)  # Q(s,a)
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/cartpole_lambda.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V5.ckpt")
+        # save_path = self.saver.save(self.sess, "Model/SRDDPG_INITIAL.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -141,13 +146,13 @@ a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
 
 ddpg = DDPG(a_dim, s_dim, a_bound)
-
+ddpg.save_result()
 var = 5  # control exploration
 t1 = time.time()
 win=0
 winmax=1
-max_reward=200000
-max_ewma_reward=120000
+max_reward=400000
+max_ewma_reward=200000
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
@@ -163,12 +168,12 @@ for i in range(MAX_EPISODES):
         a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
         #if var<0.01:
             #a=np.clip(np.random.normal(a, a_bound), -a_bound, a_bound)
-        s_, r, done, hit = env.step(a,i)
+        s_, r, done, hit = env.step(a)
 
         ddpg.store_transition(s, a, r/10, s_)
 
         if ddpg.pointer > MEMORY_CAPACITY:
-            var *= .9999995    # decay the action randomness
+            var *= .999995    # decay the action randomness
             #var = np.max([var,0.1])
             # LR_A *= .99995
             # LR_C *= .99995
@@ -177,7 +182,9 @@ for i in range(MAX_EPISODES):
             if l_q>tol:
                 if labda==0:
                     labda = 1e-8
-                labda = labda*2
+                labda = min(labda*2,11)
+                if labda==11:
+                    labda = 1e-8
             if l_q<-tol:
                 labda = labda/2
             # lamda_=l_q#
@@ -203,20 +210,20 @@ for i in range(MAX_EPISODES):
             #     ddpg.save_result()
             # break
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=EWMA_reward[0,i+1]
-                LR_A *= .9  # learning rate for actor
-                LR_C *= .95  # learning rate for critic
+                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
+                LR_A *= .6  # learning rate for actor
+                LR_C *= .6  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
-                max_reward = ep_reward
-                LR_A *= .9  # learning rate for actor
-                LR_C *= .95  # learning rate for critic
+                max_reward = min(ep_reward+5000,500000)
+                LR_A *= .7  # learning rate for actor
+                LR_C *= .7  # learning rate for critic
                 ddpg.save_result()
                 print("max_reward : ",ep_reward)
             else:
-                LR_A *= .995
-                LR_C *= .999
+                LR_A *= .95
+                LR_C *= .95
             break
 
         elif done:

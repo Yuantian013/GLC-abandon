@@ -96,7 +96,7 @@ class CartPoleEnv_adv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action, i):
+    def step(self, action):
         a = 0
         # self.gravity = np.random.normal(10, 2)
         # self.masscart = np.random.normal(1, 0.2)
@@ -151,8 +151,8 @@ class CartPoleEnv_adv(gym.Env):
         return self.state, cost, done, a
 
     def reset(self):
-        self.state = self.np_random.uniform(low=-0.2, high=0.2, size=(4,))
-        self.state[0] = self.np_random.uniform(low=-2, high=2)
+        self.state = self.np_random.uniform(low=-0.1, high=0.1, size=(4,))
+        self.state[0] = self.np_random.uniform(low=-1, high=1)
         self.steps_beyond_done = None
         return np.array(self.state)
 
