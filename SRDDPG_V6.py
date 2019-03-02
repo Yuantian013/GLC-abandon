@@ -4,7 +4,7 @@ matplotlib.use('TkAgg')
 import tensorflow as tf
 import numpy as np
 import time
-from cartpole_disturb import CartPoleEnv_adv as dreamer
+from cartpole_disturb_with_target import CartPoleEnv_adv as dreamer
 import os
 import math
 # For GPU
@@ -485,8 +485,9 @@ for i in range(MAX_EPISODES):
         ddpg.store_transition(s, a, d,(reward / 10), l_r, s_next)
 
         #如果状态接近边缘 就存储到边缘memory里
-        if np.abs(s[0]) > env.x_threshold*0.5 or np.abs(s[2]) > env.theta_threshold_radians*0.5:
-            ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
+        # if np.abs(s[0]) > env.x_threshold*0.5 or np.abs(s[2]) > env.theta_threshold_radians*0.5:
+        #     ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
+        ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
         #DDPG LEARN
 
         if ddpg.pointer > MEMORY_CAPACITY and ddpg.cons_pointer <= CONS_MEMORY_CAPACITY:
