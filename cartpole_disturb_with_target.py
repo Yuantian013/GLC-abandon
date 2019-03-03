@@ -198,6 +198,11 @@ class CartPoleEnv_adv(gym.Env):
                                          (self.target_position * scale + screen_width / 2.0, screen_height))
             self.target.set_color(1, 0, 0)
             self.viewer.add_geom(self.target)
+
+            self.origin = rendering.Line((0 * scale + screen_width / 2.0, 0),
+                                         (0 * scale + screen_width / 2.0, screen_height))
+            self.origin.set_color(0, 0, 0)
+            self.viewer.add_geom(self.origin)
         if self.state is None:
             return None
 

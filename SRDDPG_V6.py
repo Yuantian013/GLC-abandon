@@ -23,14 +23,14 @@ LR_D = 0.0001    # learning rate for disturb
 GAMMA = 0.99    # reward discount
 TAU = 0.01  # soft replacement
 MEMORY_CAPACITY = 10000
-CONS_MEMORY_CAPACITY = 10000
+CONS_MEMORY_CAPACITY = 1000
 BATCH_SIZE = 128
 labda=10.
 tol = 0.001
 MIU = 10.
 ALPHA3 = .1
 # Function switch
-RENDER  = True
+RENDER = True
 DISTURB = False
 DREAMER = False
 
@@ -155,7 +155,7 @@ class DDPG(object):
         self.sess.run(self.ctrain,
                       {self.S: bs, self.a: ba, self.R: br, self.S_: bs_,self.LR_C: LR_C, self.d: bd})
         self.sess.run(self.ltrain,
-                      {self.S: cons_bs, self.a: cons_ba, self.S_:cons_bs_, self.l_R: cons_blr, self.LR_C: LR_C})
+                      {self.S: bs, self.a: ba, self.S_:bs_, self.l_R: blr, self.LR_C: LR_C})
         return self.sess.run(self.l_lambda, {self.cons_S:cons_bs,
                                     self.cons_S_:cons_bs_, self.l_R:cons_blr}), \
                self.sess.run(self.td_error,
@@ -486,7 +486,7 @@ for i in range(MAX_EPISODES):
         ddpg.store_transition(s, a, d,(reward / 10), l_r, s_next)
 
         #如果状态接近边缘 就存储到边缘memory里
-        if np.abs(s[0]) > env.x_threshold*0.8 or np.abs(s[2]) > env.theta_threshold_radians*0.8:
+        if np.abs(s[0]) > env.x_threshold*0.8:# or np.abs(s[2]) > env.theta_threshold_radians*0.8
             ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
         # ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
         #DDPG LEARN
