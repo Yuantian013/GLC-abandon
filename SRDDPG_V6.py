@@ -9,7 +9,7 @@ import os
 import math
 # For GPU
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 #####################  备忘  ###################
 #Lambda更新
@@ -46,8 +46,8 @@ iteration=np.zeros((1,MAX_EPISODES+1))
 var = 5  # control exploration
 t1 = time.time()
 
-max_reward=400000
-max_ewma_reward=200000
+min_reward=100
+min_ewma_reward=50
 
 ###############################  DDPG  ####################################
 class DDPG(object):
@@ -105,7 +105,7 @@ class DDPG(object):
 
         self.l_lambda = tf.reduce_mean(self.cons_l_ - self.cons_l + ALPHA3 * self.l_R)
         a_pre_loss = - tf.reduce_mean(self.q)
-        a_loss = self.labda * self.l_lambda - tf.reduce_mean(self.q)
+        a_loss = self.labda * self.l_lambda + tf.reduce_mean(self.q)
         d_loss = tf.reduce_mean(self.q)
         self.apretrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_pre_loss, var_list=a_params)
         self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
@@ -485,14 +485,14 @@ for i in range(MAX_EPISODES):
         ddpg.store_transition(s, a, d,(reward / 10), l_r, s_next)
 
         #如果状态接近边缘 就存储到边缘memory里
-        # if np.abs(s[0]) > env.x_threshold*0.5 or np.abs(s[2]) > env.theta_threshold_radians*0.5:
-        #     ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
-        ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
+        if np.abs(s[0]) > env.x_threshold*0.8 or np.abs(s[2]) > env.theta_threshold_radians*0.8:
+            ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
+        # ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
         #DDPG LEARN
 
-        if ddpg.pointer > MEMORY_CAPACITY and ddpg.cons_pointer <= CONS_MEMORY_CAPACITY:
-            var *= .99999
-            c_loss, l_loss = ddpg.pre_learn(LR_A, LR_C, LR_D)
+        # if ddpg.pointer > MEMORY_CAPACITY and ddpg.cons_pointer <= CONS_MEMORY_CAPACITY:
+        #     var *= .99999
+        #     c_loss, l_loss = ddpg.pre_learn(LR_A, LR_C, LR_D)
 
         if ddpg.pointer > MEMORY_CAPACITY and ddpg.cons_pointer > CONS_MEMORY_CAPACITY:
             # Decay the action randomness
@@ -523,20 +523,20 @@ for i in range(MAX_EPISODES):
             print('Episode:', i, ' Reward: %.1f' % REWARD,'Explore: %.2f' % var,"good",
                   "EWMA_step = ",int(EWMA_step[0,i+1]),"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,'lambda',labda,
                   'LR_D :',LR_D, 'lyapunov_error:', l_loss , 'critic_error:', c_loss )
-            if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
+            if EWMA_reward[0,i+1]<min_ewma_reward:
+                min_ewma_reward=EWMA_reward[0,i+1]+1000
                 LR_A *= .8  # learning rate for actor
                 LR_D *= .8  # learning rate for disturb
                 LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
 
-            if REWARD> max_reward:
-                max_reward = min(REWARD+5000,500000)
+            if REWARD< min_reward:
+                max_reward = REWARD
                 LR_A *= .8  # learning rate for actor
                 LR_D *= .8  # learning rate for disturb
                 LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
-                print("max_reward : ",REWARD)
+                print("min_reward : ",REWARD)
             else:
                 LR_A *= .99
                 LR_D *= .99

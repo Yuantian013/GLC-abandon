@@ -138,20 +138,20 @@ class CartPoleEnv_adv(gym.Env):
         if x < -self.x_threshold \
                 or x > self.x_threshold:
             a = 1
-        r1 = ((self.x_threshold/5 - abs(x-self.target_position))) / (self.x_threshold/5)  # - 0.8
-        r2 = ((self.theta_threshold_radians)/4 - abs(theta)) / (self.theta_threshold_radians/4)  # - 0.5
-        # r1 = (self.x_threshold-abs(x-4))/ (self.x_threshold)  # - 0.8
-        # r2 = (self.theta_threshold_radians - abs(theta) )/ (self.theta_threshold_radians )  # - 0.5
+        # r1 = ((self.x_threshold/5 - abs(x-self.target_position))) / (self.x_threshold/5)  # - 0.8
+        # r2 = ((self.theta_threshold_radians)/4 - abs(theta)) / (self.theta_threshold_radians/4)  # - 0.5
+        r1 = (x-self.target_position)/ (self.x_threshold)  # - 0.8
+        r2 = (theta)/ (self.theta_threshold_radians )  # - 0.5
         # cost1=(self.x_threshold - abs(x))/self.x_threshold
         e1 = (abs(x)) / self.x_threshold
         e2 = (abs(theta)) / self.theta_threshold_radians
-        cost = COST_V1(r1, r2, e1, e2, x, x_dot, theta, theta_dot)
+        cost = COST_V2(r1, r2, e1, e2, x, x_dot, theta, theta_dot)
 
         return self.state, cost, done, a
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.2, high=0.2, size=(4,))
-        self.state[0] = self.np_random.uniform(low=-2, high=2)
+        self.state[0] = self.np_random.uniform(low=-5, high=5)
         self.steps_beyond_done = None
         return np.array(self.state)
 
@@ -226,5 +226,5 @@ def COST_V1(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
     return cost
 
 def COST_V2(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
-    cost = (( 2 * (x-4)) ** 2)+ np.sign(r2) * ((10 * r2) ** 2)
+    cost =  ((10 * r2) ** 2) + ((5 * r1) ** 2)
     return cost
