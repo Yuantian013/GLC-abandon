@@ -46,8 +46,8 @@ iteration=np.zeros((1,MAX_EPISODES+1))
 var = 5  # control exploration
 t1 = time.time()
 
-max_reward=400000
-max_ewma_reward=200000
+min_reward=1000
+min_ewma_reward=500
 
 ###############################  DDPG  ####################################
 class DDPG(object):
@@ -143,6 +143,7 @@ class DDPG(object):
         indices = np.random.choice(CONS_MEMORY_CAPACITY, size=BATCH_SIZE)
         bt = self.cons_memory[indices, :]
         cons_bs = bt[:, :self.s_dim]
+        cons_ba = bt[:, self.s_dim: self.s_dim + self.a_dim]
         cons_bs_ = bt[:, -self.s_dim:]
         cons_blr = bt[:, -self.s_dim - 1: -self.s_dim]
         
@@ -154,7 +155,7 @@ class DDPG(object):
         self.sess.run(self.ctrain,
                       {self.S: bs, self.a: ba, self.R: br, self.S_: bs_,self.LR_C: LR_C, self.d: bd})
         self.sess.run(self.ltrain,
-                      {self.S: bs, self.a: ba, self.S_:bs_, self.l_R: blr, self.LR_C: LR_C})
+                      {self.S: cons_bs, self.a: cons_ba, self.S_:cons_bs_, self.l_R: cons_blr, self.LR_C: LR_C})
         return self.sess.run(self.l_lambda, {self.cons_S:cons_bs,
                                     self.cons_S_:cons_bs_, self.l_R:cons_blr}), \
                self.sess.run(self.td_error,
