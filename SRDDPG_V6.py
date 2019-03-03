@@ -46,8 +46,8 @@ iteration=np.zeros((1,MAX_EPISODES+1))
 var = 5  # control exploration
 t1 = time.time()
 
-min_reward=100
-min_ewma_reward=50
+max_reward=400000
+max_ewma_reward=200000
 
 ###############################  DDPG  ####################################
 class DDPG(object):
