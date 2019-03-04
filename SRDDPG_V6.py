@@ -1,6 +1,6 @@
 # Useful Package
-import matplotlib
-matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
 import tensorflow as tf
 import numpy as np
 import time
@@ -28,7 +28,7 @@ BATCH_SIZE = 128
 labda=10.
 tol = 0.001
 MIU = 10.
-ALPHA3 = .1
+ALPHA3 = 0
 # Function switch
 RENDER = True
 DISTURB = False
@@ -46,8 +46,8 @@ iteration=np.zeros((1,MAX_EPISODES+1))
 var = 5  # control exploration
 t1 = time.time()
 
-min_reward=1000
-min_ewma_reward=500
+min_reward=50000
+min_ewma_reward=50000
 
 ###############################  DDPG  ####################################
 class DDPG(object):
@@ -161,6 +161,9 @@ class DDPG(object):
                self.sess.run(self.td_error,
                              {self.S: bs, self.a: ba, self.R: br, self.S_: bs_, self.LR_C: LR_C, self.d: bd}), \
                self.sess.run(self.l_error, {self.S: bs, self.a: ba, self.S_:bs_, self.l_R: blr})
+
+    def evaulate_lyapunov(self, s):
+        return self.sess.run(self.l, {self.S:s[np.newaxis, :]})
 
     def pre_learn(self, LR_A, LR_D, LR_C):
         indices = np.random.choice(MEMORY_CAPACITY, size=BATCH_SIZE)
@@ -425,6 +428,13 @@ class Dreamer(object):
         if self.viewer:
             self.viewer.close()
             self.viewer = None
+
+def draw(x,y):
+    plt.plot(x,y)
+    plt.grid(True)
+    # fig = plt.gcf()
+    plt.show()
+
 ###############################  INITIALIZE  ####################################
 env = dreamer()
 env = env.unwrapped
@@ -441,6 +451,8 @@ for i in range(MAX_EPISODES):
     REWARD = 0
     l_loss = np.nan
     c_loss = np.nan
+    L_values = []
+    l_rewards = []
     for j in range(MAX_EP_STEPS):
 
 
@@ -455,7 +467,7 @@ for i in range(MAX_EPISODES):
         # Add exploration noise
         a = ddpg.choose_action(s)
         a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
-
+        L_values.append(ddpg.evaulate_lyapunov(s))
 
         if DISTURB:
             # Choose disturb
@@ -472,6 +484,7 @@ for i in range(MAX_EPISODES):
         # 主要是判断是否游戏结束
         s_, r, done, hit = env.step(a,d)             # S_=ENV(S,A), R=REWARD(S_)
         l_r = np.square(5*s_[0]/env.x_threshold) + np.square(10*s_[2]/env.theta_threshold_radians)
+        l_rewards.append(l_r)
         # l_r = np.linalg.norm(s_,2)
         # RUN IN DREAM
         # 得到的是梦境中的s,a->s_dream 和 r_dream
@@ -483,11 +496,11 @@ for i in range(MAX_EPISODES):
 
 
         #储存s,a和s_next,reward用于DDPG的学习
-        ddpg.store_transition(s, a, d,(reward / 10), l_r, s_next)
+        ddpg.store_transition(s, a, d,(reward / 10), l_r/10, s_next)
 
         #如果状态接近边缘 就存储到边缘memory里
         if np.abs(s[0]) > env.x_threshold*0.8:# or np.abs(s[2]) > env.theta_threshold_radians*0.8
-            ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
+            ddpg.store_edge_transition(s, a, d, (reward / 10), l_r/10, s_next)
         # ddpg.store_edge_transition(s, a, d, (reward / 10), l_r, s_next)
         #DDPG LEARN
 
@@ -519,20 +532,23 @@ for i in range(MAX_EPISODES):
 
         # OUTPUT TRAINING INFORMATION AND LEARNING RATE DECAY
         if j == MAX_EP_STEPS - 1:
+            L_values = np.array(L_values)
+            draw(range(len(L_values)), L_values[:,0,0])
+            draw(range(len(l_rewards)), l_rewards[:])
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*REWARD
             print('Episode:', i, ' Reward: %.1f' % REWARD,'Explore: %.2f' % var,"good",
                   "EWMA_step = ",int(EWMA_step[0,i+1]),"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,'lambda',labda,
                   'LR_D :',LR_D, 'lyapunov_error:', l_loss , 'critic_error:', c_loss )
             if EWMA_reward[0,i+1]<min_ewma_reward:
-                min_ewma_reward=EWMA_reward[0,i+1]+1000
+                min_ewma_reward=EWMA_reward[0,i+1]
                 LR_A *= .8  # learning rate for actor
                 LR_D *= .8  # learning rate for disturb
                 LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
 
             if REWARD< min_reward:
-                max_reward = REWARD
+                min_reward = REWARD
                 LR_A *= .8  # learning rate for actor
                 LR_D *= .8  # learning rate for disturb
                 LR_C *= .8  # learning rate for critic
@@ -543,6 +559,7 @@ for i in range(MAX_EPISODES):
                 LR_D *= .99
                 LR_C *= .99
             break
+
         elif done:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*REWARD
