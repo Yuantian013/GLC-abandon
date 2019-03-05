@@ -160,7 +160,7 @@ class DDPG(object):
                                     self.cons_S_:cons_bs_, self.l_R:cons_blr}), \
                self.sess.run(self.td_error,
                              {self.S: bs, self.a: ba, self.R: br, self.S_: bs_, self.LR_C: LR_C, self.d: bd}), \
-               self.sess.run(self.l_error, {self.S: bs, self.a: ba, self.S_:bs_, self.l_R: blr})
+               self.sess.run(self.l_error, {self.S: cons_bs, self.a: cons_ba, self.S_:cons_bs_, self.l_R: cons_blr})
 
     def evaulate_lyapunov(self, s):
         return self.sess.run(self.l, {self.S:s[np.newaxis, :]})
@@ -430,10 +430,12 @@ class Dreamer(object):
             self.viewer = None
 
 def draw(x,y):
-    plt.plot(x,y)
+
+    plt.ion()
+    plt.plot(x, y)
     plt.grid(True)
-    # fig = plt.gcf()
-    plt.show()
+    plt.pause(10)
+    plt.close()
 
 ###############################  INITIALIZE  ####################################
 env = dreamer()
@@ -467,7 +469,7 @@ for i in range(MAX_EPISODES):
         # Add exploration noise
         a = ddpg.choose_action(s)
         a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
-        L_values.append(ddpg.evaulate_lyapunov(s))
+        # L_values.append(ddpg.evaulate_lyapunov(s))
 
         if DISTURB:
             # Choose disturb
@@ -484,6 +486,7 @@ for i in range(MAX_EPISODES):
         # 主要是判断是否游戏结束
         s_, r, done, hit = env.step(a,d)             # S_=ENV(S,A), R=REWARD(S_)
         l_r = np.square(5*s_[0]/env.x_threshold) + np.square(10*s_[2]/env.theta_threshold_radians)
+        # l_r = 25*max(s_[0]-4,0)+ 25*np.abs(s_[2]/env.theta_threshold_radians)
         l_rewards.append(l_r)
         # l_r = np.linalg.norm(s_,2)
         # RUN IN DREAM
@@ -533,7 +536,7 @@ for i in range(MAX_EPISODES):
         # OUTPUT TRAINING INFORMATION AND LEARNING RATE DECAY
         if j == MAX_EP_STEPS - 1:
             L_values = np.array(L_values)
-            draw(range(len(L_values)), L_values[:,0,0])
+            # draw(range(len(L_values)), L_values[:,0,0])
             draw(range(len(l_rewards)), l_rewards[:])
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*REWARD
