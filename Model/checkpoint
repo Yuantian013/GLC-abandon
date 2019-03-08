@@ -1,2 +1,2 @@
-model_checkpoint_path: "V8.ckpt"
-all_model_checkpoint_paths: "V8.ckpt"
+model_checkpoint_path: "SRDDPG_V3__.ckpt"
+all_model_checkpoint_paths: "SRDDPG_V3__.ckpt"
