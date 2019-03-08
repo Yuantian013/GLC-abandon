@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import time
 import matplotlib.pyplot as plt
-from cartpole_uncertainty import CartPoleEnv_adv as dreamer
+from ENV_V0 import CartPoleEnv_adv as dreamer
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"

@@ -141,8 +141,8 @@ class CartPoleEnv_adv(gym.Env):
         if x < -self.x_threshold \
                 or x > self.x_threshold:
             a = 1
-        r1 = ((self.x_threshold/5 - abs(x))) / (self.x_threshold/5)  # - 0.8
-        r2 = ((self.theta_threshold_radians / 4) - abs(theta)) / (self.theta_threshold_radians / 4)  # - 0.5
+        r1 = ((self.x_threshold/5 - abs(x))) / (self.x_threshold/5)  # -4-----1
+        r2 = ((self.theta_threshold_radians / 4) - abs(theta)) / (self.theta_threshold_radians / 4)  # -3--------1
         # cost1=(self.x_threshold - abs(x))/self.x_threshold
         e1 = (abs(x)) / self.x_threshold
         e2 = (abs(theta)) / self.theta_threshold_radians

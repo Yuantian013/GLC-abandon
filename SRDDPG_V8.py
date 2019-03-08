@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import time
 import matplotlib.pyplot as plt
-from cartpole_uncertainty import CartPoleEnv_adv as dreamer
+from ENV_V0 import CartPoleEnv_adv as dreamer
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -210,7 +210,7 @@ class DDPG(object):
 s_dim = env.observation_space.shape[0]
 a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
-Lyapunov=0
+Lyapunov=1
 ddpg = DDPG(a_dim, s_dim, a_bound,Lyapunov)
 
 for i in range(MAX_EPISODES):
@@ -230,37 +230,61 @@ for i in range(MAX_EPISODES):
         # Choose action
         # Add exploration noise
         a = ddpg.choose_action(s)
-        a = np.clip(np.random.normal(a, var), -a_bound, a_bound)    # add randomness to action selection for exploration
+        a = np.clip(np.random.normal(a, var), -a_bound, a_bound)
 
+
+        # Run in simulator
         s_, r, done, hit = env.step(a)
 
-        l_r = np.square(5 * s_[0] / env.x_threshold) + np.square(10 * s_[2] / env.theta_threshold_radians)
-
+        #Lyapunov reward
+        # l_r = np.square(5 * s_[0] / env.x_threshold) + np.square(10 * s_[2] / env.theta_threshold_radians)
+        l_r = np.square(10*max(np.abs(s_[0])/10,0.5))
         l_rewards.append(l_r)
 
-
+        # 储存s,a和s_next,reward用于DDPG的学习
         ddpg.store_transition(s, a,(r / 10), l_r/10, s_)
 
-        if ddpg.pointer > MEMORY_CAPACITY:
-            var *= .999995    # decay the action randomness
-            #var = np.max([var,0.1])
-            # LR_A *= .99995
-            # LR_C *= .99995
-            l_q,c_loss, l_loss=ddpg.learn(LR_A,LR_C,labda)
-            # print(l_q,l_r)
-            if l_q>tol:
-                if labda==0:
-                    labda = 1e-8
-                labda = min(labda*2,11)
-                if labda==11:
-                    labda = 1e-8
-            if l_q<-tol:
-                labda = labda/2
-            # lamda_=l_q#
-            # labda = max(labda+0.0001*lamda_,0)
+        # 如果状态接近边缘 就存储到边缘memory里
+        if np.abs(s[0]) > 4:  # or np.abs(s[2]) > env.theta_threshold_radians*0.8
+            ddpg.store_edge_transition(s, a, (r / 10), l_r / 10, s_)
 
+
+        # Learn
+        if Lyapunov:
+            if ddpg.pointer > MEMORY_CAPACITY and ddpg.cons_pointer > CONS_MEMORY_CAPACITY:
+                var *= .999995  # decay the action randomness
+
+                l_q, c_loss, l_loss = ddpg.learn(LR_A, LR_C, labda)
+
+                if l_q > tol:
+                    if labda == 0:
+                        labda = 1e-8
+                    labda = min(labda * 2, 11)
+                    if labda == 11:
+                        labda = 1e-8
+                if l_q < -tol:
+                    labda = labda / 2
+        else:
+            if ddpg.pointer > MEMORY_CAPACITY:
+                var *= .999995  # decay the action randomness
+
+                l_q, c_loss, l_loss = ddpg.learn(LR_A, LR_C, labda)
+
+                if l_q > tol:
+                    if labda == 0:
+                        labda = 1e-8
+                    labda = min(labda * 2, 11)
+                    if labda == 11:
+                        labda = 1e-8
+                if l_q < -tol:
+                    labda = labda / 2
+
+
+        # 状态更新
         s = s_
         ep_reward += r
+
+        # OUTPUT TRAINING INFORMATION AND LEARNING RATE DECAY
         if j == MAX_EP_STEPS - 1:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
@@ -271,13 +295,13 @@ for i in range(MAX_EPISODES):
                   'lyapunov_error:', l_loss, 'critic_error:', c_loss)
 
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
+                max_ewma_reward=min(EWMA_reward[0,i+1],500000)
                 LR_A *= .8  # learning rate for actor
                 LR_C *= .8  # learning rate for critic
                 ddpg.save_result()
 
             if ep_reward> max_reward:
-                max_reward = min(ep_reward+5000,500000)
+                max_reward = min(ep_reward,500000)
                 LR_A *= .8  # learning rate for actor
                 LR_C *= .8  # learning rate for critic
                 ddpg.save_result()

@@ -65,12 +65,11 @@ class CartPoleEnv_adv(gym.Env):
         self.force_mag = 20
         self.tau = 0.02  # seconds between state updates
         self.kinematics_integrator = 'euler'
-        # The x coordinate would like to reach
-        self.target_position = 5
+
         # Angle at which to fail the episode
         self.theta_threshold_radians = 20 * 2 * math.pi / 360
         # self.theta_threshold_radians = 12 * 2 * math.pi / 360
-        self.x_threshold = 5
+        self.x_threshold = 10
         # self.max_v=1.5
         # self.max_w=1
         # FOR DATA
@@ -97,12 +96,16 @@ class CartPoleEnv_adv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action,disturb=np.zeros([2])):
+    def step(self, action):
         a = 0
+        self.gravity = np.random.normal(10, 2)
+        self.masscart = np.random.normal(1, 0.2)
+        self.masspole = np.random.normal(0.1, 0.02)
         self.total_mass = (self.masspole + self.masscart)
         state = self.state
         x, x_dot, theta, theta_dot = state
-        force = action
+        force = np.random.normal(action, 1)# wind
+        # force = action
         costheta = math.cos(theta)
         sintheta = math.sin(theta)
         temp = np.random.normal((force + self.polemass_length * theta_dot * theta_dot * sintheta) / self.total_mass,0)
@@ -110,10 +113,10 @@ class CartPoleEnv_adv(gym.Env):
                     self.length * (4.0 / 3.0 - self.masspole * costheta * costheta / self.total_mass)),0)
         xacc = np.random.normal(temp - self.polemass_length * thetaacc * costheta / self.total_mass,0)
         if self.kinematics_integrator == 'euler':
-            x = x + self.tau * x_dot+disturb[0]
+            x = x + self.tau * x_dot
             x_dot = x_dot + self.tau * xacc
             # x_dot = np.clip(x_dot, -self.max_v, self.max_v)
-            theta = theta + self.tau * theta_dot+disturb[1]
+            theta = theta + self.tau * theta_dot
             theta_dot = theta_dot + self.tau * thetaacc
             # theta_dot = np.clip(theta_dot, -self.max_w, self.max_w)
         elif self.kinematics_integrator == 'friction':
@@ -130,7 +133,7 @@ class CartPoleEnv_adv(gym.Env):
             theta_dot = theta_dot + self.tau * thetaacc
             theta = theta + self.tau * theta_dot
         self.state = np.array([x, x_dot, theta, theta_dot])
-        done = x < -self.x_threshold \
+        done = x < 0 \
                or x > self.x_threshold \
                or theta < -self.theta_threshold_radians \
                or theta > self.theta_threshold_radians
@@ -138,10 +141,8 @@ class CartPoleEnv_adv(gym.Env):
         if x < -self.x_threshold \
                 or x > self.x_threshold:
             a = 1
-        # r1 = ((self.x_threshold/5 - abs(x-self.target_position))) / (self.x_threshold/5)  # - 0.8
-        # r2 = ((self.theta_threshold_radians)/4 - abs(theta)) / (self.theta_threshold_radians/4)  # - 0.5
-        r1 = ((self.x_threshold / 5 - abs(x-4))) / (self.x_threshold / 5)  # - 0.8
-        r2 = ((self.theta_threshold_radians / 4) - abs(theta)) / (self.theta_threshold_radians / 4)  # - 0.5
+        r1 = ((self.x_threshold/10 - abs(x-6))) / (self.x_threshold/10)  # -4-----1
+        r2 = ((self.theta_threshold_radians / 4) - abs(theta)) / (self.theta_threshold_radians / 4)  # -3--------1
         # cost1=(self.x_threshold - abs(x))/self.x_threshold
         e1 = (abs(x)) / self.x_threshold
         e2 = (abs(theta)) / self.theta_threshold_radians
@@ -151,7 +152,7 @@ class CartPoleEnv_adv(gym.Env):
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.2, high=0.2, size=(4,))
-        self.state[0] = self.np_random.uniform(low=-5, high=5)
+        self.state[0] = self.np_random.uniform(low=2, high=6)
         self.steps_beyond_done = None
         return np.array(self.state)
 
@@ -191,20 +192,14 @@ class CartPoleEnv_adv(gym.Env):
             self.track = rendering.Line((0, carty), (screen_width, carty))
             self.track.set_color(0, 0, 0)
             self.viewer.add_geom(self.track)
-            rendering.Line()
 
             # Render the target position
-            self.target = rendering.Line((self.target_position * scale + screen_width / 2.0, 0),
-                                         (self.target_position * scale + screen_width / 2.0, screen_height))
+            self.target = rendering.Line((6 * scale + screen_width / 2.0, 0),
+                                         (6 * scale + screen_width / 2.0, screen_height))
             self.target.set_color(1, 0, 0)
             self.viewer.add_geom(self.target)
 
-            self.origin = rendering.Line((0 * scale + screen_width / 2.0, 0),
-                                         (0 * scale + screen_width / 2.0, screen_height))
-            self.origin.set_color(0, 0, 0)
-            self.viewer.add_geom(self.origin)
-        if self.state is None:
-            return None
+        if self.state is None: return None
 
         x = self.state
         cartx = x[0] * scale + screen_width / 2.0  # MIDDLE OF CART
