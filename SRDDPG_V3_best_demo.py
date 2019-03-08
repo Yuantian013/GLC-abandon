@@ -69,7 +69,7 @@ class DDPG(object):
         self.q_lambda =tf.reduce_mean(self.q - self.q_cons)
         # self.q_lambda = tf.reduce_mean(self.q_cons - self.q)
 
-        a_loss = - tf.reduce_mean(self.q) + self.labda * self.q_lambda  # maximize the q
+        a_loss = - tf.reduce_mean(self.q)+ self.labda * self.q_lambda  # maximize the q
 
         self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss, var_list=a_params)#以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
 
@@ -129,7 +129,7 @@ class DDPG(object):
 
     def save_result(self):
         # save_path = self.saver.save(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_V3_.ckpt")
+        save_path = self.saver.save(self.sess, "Model/SRDDPG_V3__.ckpt")
         # save_path = self.saver.save(self.sess, "Model/SRDDPG_INITIAL.ckpt")
         print("Save to path: ", save_path)
 

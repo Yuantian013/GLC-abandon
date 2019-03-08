@@ -12,7 +12,7 @@ import scipy.io as scio
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 2000
-MAX_EP_STEPS = 2000
+MAX_EP_STEPS = 500
 LR_A = 0.001    # learning rate for actor
 LR_C = 0.002    # learning rate for critic
 GAMMA = 0.9     # reward discount

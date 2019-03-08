@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import time
-from cartpole_disturb_with_target import CartPoleEnv_adv as dreamer
+from ENV_V0 import CartPoleEnv_adv as dreamer
 import os
 import math
 # For GPU
@@ -104,7 +104,7 @@ class DDPG(object):
         self.cons_l_ = self._build_l(self.cons_S_, cons_a_, reuse=True)
 
         self.l_lambda = tf.reduce_mean(self.cons_l_ - self.cons_l + ALPHA3 * self.l_R)
-        a_pre_loss = - tf.reduce_mean(self.q)
+        a_pre_loss = - tf.reduce_mean(self.q) # Original ddpg
         a_loss = self.labda * self.l_lambda + tf.reduce_mean(self.q)
         d_loss = tf.reduce_mean(self.q)
         self.apretrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_pre_loss, var_list=a_params)
@@ -113,8 +113,8 @@ class DDPG(object):
                                                                  var_list=d_params)  # 以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
 
         with tf.control_dependencies(target_update):    # soft replacement happened at here
-            q_target = self.R + GAMMA * q_ + beta*tf.matmul(self.d, tf.transpose(self.d))
-            l_target = self.l_R + GAMMA * l_
+            q_target = self.R + GAMMA * q_ + beta*tf.matmul(self.d, tf.transpose(self.d)) # 没有d的时候就是普通的ddpg
+            l_target = self.l_R + GAMMA * l_ # Lyapunov critic
             self.td_error = tf.losses.mean_squared_error(labels=q_target, predictions=self.q)
             self.l_error = tf.losses.mean_squared_error(labels=l_target, predictions=self.l)
             self.ctrain = tf.train.AdamOptimizer(self.LR_C).minimize(self.td_error, var_list=c_params)
@@ -133,13 +133,14 @@ class DDPG(object):
     def learn(self,LR_A,LR_D,LR_C,labda):
         indices = np.random.choice(MEMORY_CAPACITY, size=BATCH_SIZE)
         bt = self.memory[indices, :]
-        bs = bt[:, :self.s_dim]
-        ba = bt[:, self.s_dim: self.s_dim + self.a_dim]
-        bd = bt[:, self.s_dim + self.a_dim: self.s_dim + self.a_dim+2]
-        br = bt[:, -self.s_dim - 2: -self.s_dim-1]
-        blr = bt[:, -self.s_dim - 1: -self.s_dim]
-        bs_ = bt[:, -self.s_dim:]
+        bs = bt[:, :self.s_dim] # state
+        ba = bt[:, self.s_dim: self.s_dim + self.a_dim] # action
+        bd = bt[:, self.s_dim + self.a_dim: self.s_dim + self.a_dim+2] # disturb
+        br = bt[:, -self.s_dim - 2: -self.s_dim-1] # reward
+        blr = bt[:, -self.s_dim - 1: -self.s_dim]  # l_reward
+        bs_ = bt[:, -self.s_dim:] # next state
 
+        # 边缘的 s a s_ l_r
         indices = np.random.choice(CONS_MEMORY_CAPACITY, size=BATCH_SIZE)
         bt = self.cons_memory[indices, :]
         cons_bs = bt[:, :self.s_dim]
@@ -253,7 +254,7 @@ class DDPG(object):
             return tf.multiply(d, [x_threshold/500,theta_threshold_radians/500], name='scaled_d')
 
     def save_result(self):
-        save_path = self.saver.save(self.sess, "Model/SRDDPG_In_Dream_WITHOUT_D.ckpt")
+        save_path = self.saver.save(self.sess, "Model/V6_T.ckpt")
         print("Save to path: ", save_path)
 ###############################  DREAMER  ####################################
 
@@ -485,9 +486,12 @@ for i in range(MAX_EPISODES):
         # 得到的是真实的 s,a->s_ 和 r
         # 主要是判断是否游戏结束
         s_, r, done, hit = env.step(a,d)             # S_=ENV(S,A), R=REWARD(S_)
+
         l_r = np.square(5*s_[0]/env.x_threshold) + np.square(10*s_[2]/env.theta_threshold_radians)
+
         # l_r = 25*max(s_[0]-4,0)+ 25*np.abs(s_[2]/env.theta_threshold_radians)
         l_rewards.append(l_r)
+
         # l_r = np.linalg.norm(s_,2)
         # RUN IN DREAM
         # 得到的是梦境中的s,a->s_dream 和 r_dream
