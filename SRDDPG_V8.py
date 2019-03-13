@@ -86,13 +86,12 @@ class DDPG(object):
 
         # 这个网络不及时更新参数, 用于给出 Actor 更新参数时的 Gradient ascent 强度
         q_ = self._build_c(self.S_, tf.stop_gradient(a_), reuse=True, custom_getter=ema_getter)
-        l_ = self._build_l(self.S_, tf.stop_gradient(a_), reuse=True, custom_getter=ema_getter)  # lyapunov 网络
+        l_ = self._build_l(self.S_, tf.stop_gradient(a_), reuse=True, custom_getter=ema_getter)
         self.cons_l = self._build_l(self.cons_S, tf.stop_gradient(cons_a), reuse=True)
         self.cons_l_ = self._build_l(self.cons_S_, cons_a_, reuse=True)
 
-
-
-        self.l_lambda = tf.reduce_mean(self.cons_l_ - self.cons_l)
+        ALPHA3=0.1
+        self.l_lambda = tf.reduce_mean(self.cons_l_ - self.cons_l+ ALPHA3 * self.l_R)
 
         if self.ly_switch:
             a_loss = self.labda * self.l_lambda - tf.reduce_mean(self.q)
@@ -101,9 +100,7 @@ class DDPG(object):
             a_loss = -tf.reduce_mean(self.q)
 
 
-        self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss,
-                                                                 var_list=a_params)  # 以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
-
+        self.atrain = tf.train.AdamOptimizer(self.LR_A).minimize(a_loss,var_list=a_params)  #以learning_rate去训练，方向是minimize loss，调整列表参数，用adam
 
         with tf.control_dependencies(target_update):  # soft replacement happened at here
             q_target = self.R + GAMMA * q_    #ddpg
@@ -115,7 +112,6 @@ class DDPG(object):
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
-        # self.saver.restore(self.sess, "Save/cartpole_g10_M1_m0.1_l0.5_tau_0.02.ckpt")  # 1 0.1 0.5 0.001
 
     def choose_action(self, s):
         return self.sess.run(self.a, {self.S: s[np.newaxis, :]})[0]
@@ -144,6 +140,7 @@ class DDPG(object):
                       {self.S: bs, self.a: ba, self.R: br, self.S_: bs_, self.LR_C: LR_C})
         self.sess.run(self.ltrain,
                       {self.S: bs, self.a: ba, self.S_: bs_, self.l_R: blr, self.LR_C: LR_C})
+
         return self.sess.run(self.l_lambda, {self.cons_S: cons_bs,
                                              self.cons_S_: cons_bs_, self.l_R: cons_blr}), \
                self.sess.run(self.td_error,
@@ -185,7 +182,6 @@ class DDPG(object):
             net_1 = tf.layers.dense(net_0, 256, activation=tf.nn.relu, name='l2', trainable=trainable)  # 原始是30
             net_2 = tf.layers.dense(net_1, 128, activation=tf.nn.relu, name='l3', trainable=trainable)  # 原始是30
             return tf.layers.dense(net_2, 1, trainable=trainable)  # Q(s,a)
-
 
     def _build_l(self, s, a, reuse=None, custom_getter=None):
         trainable = True if reuse is None else False
@@ -314,7 +310,6 @@ for i in range(MAX_EPISODES):
         elif done:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
-            #EWMA[0,i+1]=EWMA[0,i+1]/(1-(EWMA_p **(i+1)))
             if hit==1:
                 print('Episode:', i, ' Reward: %.1f' % ep_reward, 'Explore: %.2f' % var, "break in : ", j, "due to ",
                       "hit the wall", "EWMA_step = ", int(EWMA_step[0, i + 1]), "EWMA_reward = ", EWMA_reward[0, i + 1],
