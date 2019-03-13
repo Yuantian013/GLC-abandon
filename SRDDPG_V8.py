@@ -198,7 +198,7 @@ class DDPG(object):
 
 
     def save_result(self):
-        save_path = self.saver.save(self.sess, "Model/V8.ckpt")
+        save_path = self.saver.save(self.sess, "Model/V8_.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -207,7 +207,7 @@ class DDPG(object):
 s_dim = env.observation_space.shape[0]
 a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
-Lyapunov=True
+Lyapunov=False
 ddpg = DDPG(a_dim, s_dim, a_bound,Lyapunov)
 lyapunov_error=100000
 critic_error=100000
