@@ -152,7 +152,7 @@ class CartPoleEnv_adv(gym.Env):
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.2, high=0.2, size=(4,))
-        self.state[0] = self.np_random.uniform(low=2, high=6)
+        self.state[0] = self.np_random.uniform(low=2, high=5)
         self.steps_beyond_done = None
         return np.array(self.state)
 
@@ -201,9 +201,9 @@ class CartPoleEnv_adv(gym.Env):
 
 
             # Render the constrain position
-            self.cons = rendering.Line((4 * scale + screen_width / 2.0, 0),
-                                         (4 * scale + screen_width / 2.0, screen_height))
-            self.cons.set_color(1, 0, 0)
+            self.cons = rendering.Line((5 * scale + screen_width / 2.0, 0),
+                                         (5 * scale + screen_width / 2.0, screen_height))
+            self.cons.set_color(0, 0, 1)
             self.viewer.add_geom(self.cons)
 
         if self.state is None: return None
