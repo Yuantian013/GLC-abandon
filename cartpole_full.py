@@ -132,6 +132,11 @@ class CartPoleEnv_adv(gym.Env):
             x = x + self.tau * x_dot
             theta_dot = theta_dot + self.tau * thetaacc
             theta = theta + self.tau * theta_dot
+
+        if x>5:
+            x=x-10
+        if x<-5:
+            x=x+10
         self.state = np.array([x, x_dot, theta, theta_dot])
         done = x < -self.x_threshold \
                or x > self.x_threshold \
@@ -146,7 +151,7 @@ class CartPoleEnv_adv(gym.Env):
         # cost1=(self.x_threshold - abs(x))/self.x_threshold
         e1 = (abs(x)) / self.x_threshold
         e2 = (abs(theta)) / self.theta_threshold_radians
-        cost = COST_V1(r1, r2, e1, e2, x, x_dot, theta, theta_dot)
+        cost = COST_V3(r1, r2, e1, e2, x, x_dot, theta, theta_dot)
 
         return self.state, cost, done, a
 
@@ -165,7 +170,7 @@ class CartPoleEnv_adv(gym.Env):
         scale = screen_width / world_width
         carty = 100  # TOP OF CART
         polewidth = 10.0
-        polelen = scale * 1.0
+        polelen = scale * 1
         cartwidth = 50.0
         cartheight = 30.0
 
@@ -213,7 +218,7 @@ def COST_1000(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
     return cost
 
 def COST_V3(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
-    cost = np.sign(r2) * ((10 * r2) ** 2) - abs(x) ** 4
+    cost = np.sign(r2) * ((10 * r2) ** 2)
     return cost
 
 def COST_V1(r1, r2, e1, e2, x, x_dot, theta, theta_dot):
