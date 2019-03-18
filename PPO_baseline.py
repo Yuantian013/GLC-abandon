@@ -4,18 +4,18 @@ import tensorflow as tf
 import numpy as np
 import time
 import matplotlib.pyplot as plt
-
-from cartpole_uncertainty import CartPoleEnv_adv
+from cartpole_full import CartPoleEnv_adv
+# from cartpole_uncertainty import CartPoleEnv_adv
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 500000
-MAX_EP_STEPS =2500
+MAX_EP_STEPS =5120
 LR_A = 0.000001    # learning rate for actor
-LR_C = 0.002    # learning rate for critic
-
+LR_C = 0.0002    # learning rate for critic
+# LR_C = 0.0000002    # learning rate for critic
 GAMMA = 0.99    # reward discount
 BATCH_SIZE = 4
 RENDER = True
@@ -149,7 +149,7 @@ class PPO(object):
         return self.sess.run(self.v, {self.tfs: s})[0, 0]
 
     def save_result(self):
-        save_path = self.saver.save(self.sess, "Model/PPO_V0.ckpt")
+        save_path = self.saver.save(self.sess, "Model/PPO_baseline.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -162,8 +162,8 @@ a_bound = env.action_space.high
 
 ppo = PPO(a_dim, s_dim, a_bound)
 t1 = time.time()
-max_reward=400000
-max_ewma_reward=200000
+max_reward=300000
+max_ewma_reward=100000
 max_step=10
 
 critic_error=40000
@@ -230,10 +230,29 @@ for i in range(MAX_EPISODES):
 
             break
 
+        # elif hit==1:
+        #     EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
+        #     EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
+        #     EWMA_c_loss[0,i+1] = EWMA_p*EWMA_c_loss[0,i]+(1-EWMA_p)*c_loss
+        #     BATCH_SIZE=min(max(int(EWMA_step[0,i+1]/2),16),256)
+        #     if EWMA_c_loss[0,i+1]<critic_error:
+        #         critic_error=EWMA_c_loss[0,i+1]
+        #         LR_C *=0.9
+        #     print('Episode:', i, ' Reward: %i' % int(ep_reward), "Critic loss", EWMA_c_loss[0, i + 1], "break in : ", j,
+        #           "due to ",
+        #           "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],
+        #           "LR_A = ", LR_A, "LR_C = ", LR_C, "Batch Size", BATCH_SIZE, 'Running time: ', time.time() - t1)
+        #     break
+        # #
         elif done:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0,i+1] = EWMA_p*EWMA_c_loss[0,i]+(1-EWMA_p)*c_loss
+            BATCH_SIZE=min(max(int(EWMA_step[0,i+1]/4),4),256)
+            if EWMA_c_loss[0,i+1]<critic_error:
+                critic_error=EWMA_c_loss[0,i+1]
+                LR_C *=0.9
+
             if hit==1:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1], "break in : ", j, "due to ",
                       "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
