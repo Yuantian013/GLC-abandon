@@ -69,7 +69,7 @@ class CartPoleEnv_adv(gym.Env):
         # Angle at which to fail the episode
         self.theta_threshold_radians = 20 * 2 * math.pi / 360
         # self.theta_threshold_radians = 12 * 2 * math.pi / 360
-        self.x_threshold = 5
+        self.x_threshold = 10
         # self.max_v=1.5
         # self.max_w=1
         # FOR DATA
@@ -133,7 +133,7 @@ class CartPoleEnv_adv(gym.Env):
             theta_dot = theta_dot + self.tau * thetaacc
             theta = theta + self.tau * theta_dot
         self.state = np.array([x, x_dot, theta, theta_dot])
-        done = x < 0 \
+        done = x < -self.x_threshold \
                or x > self.x_threshold \
                or theta < -self.theta_threshold_radians \
                or theta > self.theta_threshold_radians
@@ -141,7 +141,7 @@ class CartPoleEnv_adv(gym.Env):
         if x < -self.x_threshold \
                 or x > self.x_threshold:
             a = 1
-        r1 = ((self.x_threshold/5 - abs(x-4.5))) / (self.x_threshold/5)  # -4-----1
+        r1 = ((1 - abs(x-4.5))) / (1)  # -4-----1
         r2 = ((self.theta_threshold_radians / 4) - abs(theta)) / (self.theta_threshold_radians / 4)  # -3--------1
         # cost1=(self.x_threshold - abs(x))/self.x_threshold
         e1 = (abs(x)) / self.x_threshold
@@ -165,7 +165,7 @@ class CartPoleEnv_adv(gym.Env):
         scale = screen_width / world_width
         carty = 100  # TOP OF CART
         polewidth = 10.0
-        polelen = scale * 1.0
+        polelen = scale * 2.0
         cartwidth = 50.0
         cartheight = 30.0
 

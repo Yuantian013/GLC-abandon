@@ -88,7 +88,7 @@ class PPO(object):
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
-        self.saver.restore(self.sess, "Model/PPO.ckpt")  # 1 0.1 0.5 0.001
+        self.saver.restore(self.sess, "Model/PPO_baseline.ckpt")  # 1 0.1 0.5 0.001
 
     def choose_action(self, s):
         s = s[np.newaxis, :]
@@ -149,7 +149,7 @@ class PPO(object):
         return self.sess.run(self.v, {self.tfs: s})[0, 0]
 
     def save_result(self):
-        save_path = self.saver.save(self.sess, "Model/PPO_V0.ckpt")
+        save_path = self.saver.save(self.sess, "Model/PPO_V0_.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -234,6 +234,7 @@ for i in range(MAX_EPISODES):
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0,i+1] = EWMA_p*EWMA_c_loss[0,i]+(1-EWMA_p)*c_loss
+            BATCH_SIZE = min(max(int(EWMA_step[0, i + 1] / 4), 4), 256)
             if hit==1:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1], "break in : ", j, "due to ",
                       "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
