@@ -4,8 +4,8 @@ import tensorflow as tf
 import numpy as np
 import time
 import matplotlib.pyplot as plt
-# from cartpole_full import CartPoleEnv_adv
-from cartpole_uncertainty import CartPoleEnv_adv
+from cartpole_full import CartPoleEnv_adv
+# from cartpole_uncertainty import CartPoleEnv_adv
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -13,11 +13,11 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 MAX_EPISODES = 500000
 MAX_EP_STEPS =5120
-LR_A = 0.00001    # learning rate for actor
-LR_C = 0.00002    # learning rate for critic
+LR_A = 0.000005    # learning rate for actor
+LR_C = 0.0002    # learning rate for critic
 # LR_C = 0.0000002    # learning rate for critic
 GAMMA = 0.99    # reward discount
-BATCH_SIZE = 16
+BATCH_SIZE = 4
 RENDER = True
 METHOD = [
     dict(name='kl_pen', kl_target=0.01, lam=0.5),   # KL penalty
@@ -27,7 +27,7 @@ METHOD = [
 
 env = CartPoleEnv_adv()
 env = env.unwrapped
-A_UPDATE_STEPS = 10
+A_UPDATE_STEPS = 25
 C_UPDATE_STEPS = 5
 
 print(LR_A,LR_C,METHOD['epsilon'],A_UPDATE_STEPS,C_UPDATE_STEPS,BATCH_SIZE)
@@ -88,7 +88,7 @@ class PPO(object):
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
-        self.saver.restore(self.sess, "Model/PPO.ckpt")  # 1 0.1 0.5 0.001
+        # self.saver.restore(self.sess, "Model/PPO.ckpt")  # 1 0.1 0.5 0.001
 
     def choose_action(self, s):
         s = s[np.newaxis, :]
@@ -149,7 +149,7 @@ class PPO(object):
         return self.sess.run(self.v, {self.tfs: s})[0, 0]
 
     def save_result(self):
-        save_path = self.saver.save(self.sess, "Model/PPO_V1.ckpt")
+        save_path = self.saver.save(self.sess, "Model/PPO_Vanila.ckpt")
         print("Save to path: ", save_path)
 
 
@@ -167,7 +167,7 @@ max_ewma_reward=100000
 max_step=10
 
 critic_error=40000
-EWMA_c_loss[0,0]=100000
+EWMA_c_loss[0,0]=40000
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
@@ -200,13 +200,14 @@ for i in range(MAX_EPISODES):
             bs, ba, br = np.vstack(buffer_s), np.vstack(buffer_a), np.array(discounted_r)[:, np.newaxis]
             buffer_s, buffer_a, buffer_r = [], [], []
             c_loss=ppo.update(bs, ba, br,LR_A,LR_C)
+
         if j == MAX_EP_STEPS - 1:
             BATCH_SIZE = 256
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0, i + 1] = EWMA_p * EWMA_c_loss[0, i] + (1 - EWMA_p) * c_loss
             #EWMA[0,i+1]=EWMA[0,i+1]/(1-(EWMA_p **(i+1)))
-            print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"good","Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,'Running time: ', time.time() - t1)
+            print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1]/BATCH_SIZE,"good","Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,'Running time: ', time.time() - t1)
             if EWMA_reward[0,i+1]>max_ewma_reward:
                 max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
                 LR_A *= .8  # learning rate for actor
@@ -220,8 +221,8 @@ for i in range(MAX_EPISODES):
                 ppo.save_result()
                 print("max_reward : ",ep_reward)
 
-            if EWMA_c_loss[0,i+1]<critic_error:
-                critic_error=EWMA_c_loss[0,i+1]
+            if EWMA_c_loss[0,i+1]/BATCH_SIZE<critic_error:
+                critic_error=EWMA_c_loss[0,i+1]/BATCH_SIZE
                 LR_C *=0.9
 
 
@@ -230,28 +231,14 @@ for i in range(MAX_EPISODES):
 
             break
 
-        # elif hit==1:
-        #     EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
-        #     EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
-        #     EWMA_c_loss[0,i+1] = EWMA_p*EWMA_c_loss[0,i]+(1-EWMA_p)*c_loss
-        #     BATCH_SIZE=min(max(int(EWMA_step[0,i+1]/2),16),256)
-        #     if EWMA_c_loss[0,i+1]<critic_error:
-        #         critic_error=EWMA_c_loss[0,i+1]
-        #         LR_C *=0.9
-        #     print('Episode:', i, ' Reward: %i' % int(ep_reward), "Critic loss", EWMA_c_loss[0, i + 1], "break in : ", j,
-        #           "due to ",
-        #           "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],
-        #           "LR_A = ", LR_A, "LR_C = ", LR_C, "Batch Size", BATCH_SIZE, 'Running time: ', time.time() - t1)
-        #     break
-        # #
         elif done:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0,i+1] = EWMA_p*EWMA_c_loss[0,i]+(1-EWMA_p)*c_loss
-            BATCH_SIZE=min(max(int(EWMA_step[0,i+1]/2),16),256)
+            BATCH_SIZE=min(max(int(EWMA_step[0,i+1]/4),4),256)
             if EWMA_c_loss[0,i+1]<critic_error:
                 critic_error=EWMA_c_loss[0,i+1]
-                LR_C *=0.9
+                LR_C *=0.8
 
             if hit==1:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1], "break in : ", j, "due to ",

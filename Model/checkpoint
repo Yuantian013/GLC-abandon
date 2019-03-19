@@ -1,2 +1,2 @@
-model_checkpoint_path: "PPO_V0.ckpt"
-all_model_checkpoint_paths: "PPO_V0.ckpt"
+model_checkpoint_path: "PPO_Vanila.ckpt"
+all_model_checkpoint_paths: "PPO_Vanila.ckpt"
