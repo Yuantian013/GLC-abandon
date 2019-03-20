@@ -13,8 +13,9 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 MAX_EPISODES = 500000
 MAX_EP_STEPS =2500
-LR_A = 0.000001    # learning rate for actor
-# LR_A = 0.00001    # learning rate for actor
+# LR_A = 0.000001    # learning rate for actor
+LR_A = 0.00001    # learning rate for actor
+# LR_A = 0.0001    # learning rate for actor
 LR_C = 0.02*2    # learning rate for critic
 LR_L = 0.0002*5    # learning rate for Lyapunov
 GAMMA = 0.99    # reward discount
@@ -309,11 +310,14 @@ for i in range(MAX_EPISODES):
 
             if EWMA_l_loss[0, i + 1]<lyapnov_error:
                     lyapnov_error = EWMA_l_loss[0, i + 1]
-                    LR_L *= 0.8
+                    # LR_L *= 0.8
+                    LR_L *= 0.9
+
 
             if EWMA_c_loss[0,i+1]<critic_error:
-                critic_error=EWMA_c_loss[0,i+1]-10000
-                LR_C *=0.8
+                critic_error=EWMA_c_loss[0,i+1]
+                # LR_C *=0.8
+                LR_C *= 0.9
 
 
             # LR_A *= .999
