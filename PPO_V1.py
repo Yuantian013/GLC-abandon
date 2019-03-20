@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from ENV_PPO_V0 import CartPoleEnv_adv
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 #####################  hyper parameters  ####################
 
 MAX_EPISODES = 500000
@@ -17,6 +17,7 @@ LR_A = 0.000001    # learning rate for actor
 LR_C = 0.002    # learning rate for critic
 LR_L = 0.002    # learning rate for Lyapunov
 GAMMA = 0.99    # reward discount
+Epsilon_pi = 0.1
 labda=10.
 tol = 0.001
 BATCH_SIZE = 4
@@ -52,9 +53,10 @@ class PPO(object):
 
         self.tfs = tf.placeholder(tf.float32, [None, self.s_dim], 'state')
         self.cons_S = tf.placeholder(tf.float32, [None, s_dim], 's')
-        self.cons_S_ = tf.placeholder(tf.float32, [None, s_dim], 's_')
+        self.S_ = tf.placeholder(tf.float32, [None, s_dim], 's_')
         self.tfdc_r = tf.placeholder(tf.float32, [None, 1], 'discounted_r')
         self.tfdc_l = tf.placeholder(tf.float32, [None, 1], 'discounted_l')
+        self.l_r = tf.placeholder(tf.float32, [None, 1], 'l_r')
         self.LR_A= tf.placeholder(tf.float32, None, 'LR_A')
         self.LR_C = tf.placeholder(tf.float32, None, 'LR_C')
         self.v = self._build_c(self.tfs, trainable=True)
@@ -75,21 +77,25 @@ class PPO(object):
         self.tfa = tf.placeholder(tf.float32, [None, self.a_dim], 'action')
         self.tfadv = tf.placeholder(tf.float32, [None, 1], 'advantage')
 
-        self.cons_l = self._build_l(self.cons_S,reuse=True)
-        self.cons_l_ = self._build_l(self.cons_S_,reuse=True)
+        # self.cons_l = self._build_l(self.cons_S,reuse=True)
+        self.l_ = self._build_l(self.S_, reuse=True)
 
         ALPHA3 = 0.1
-        self.l_lambda = tf.reduce_mean(self.cons_l_ - self.cons_l + ALPHA3 * self.tfdc_l)
+
         with tf.variable_scope('loss'):
             with tf.variable_scope('surrogate'):
                 ratio = pi.prob(self.tfa) / oldpi.prob(self.tfa)
                 surr = ratio * self.tfadv
+
             if METHOD['name'] == 'kl_pen':
                 self.tflam = tf.placeholder(tf.float32, None, 'lambda')
                 kl = tf.distributions.kl_divergence(oldpi, pi)
                 self.kl_mean = tf.reduce_mean(kl)
+                self.l_lambda = tf.reduce_mean(ratio * self.l_ - self.l + ALPHA3 * self.l_r) + \
+                                GAMMA * Epsilon_pi/(1-GAMMA) * tf.sqrt(2*self.kl_mean)
                 self.aloss = -(tf.reduce_mean(surr - self.tflam * kl))+self.labda * self.l_lambda
             else:   # clipping method, find this is better
+                self.l_lambda = tf.reduce_mean(ratio * self.l_ - self.l + ALPHA3 * self.l_r)
                 self.aloss = -tf.reduce_mean(tf.minimum(
                     surr,
                     tf.clip_by_value(ratio, 1.-METHOD['epsilon'], 1.+METHOD['epsilon'])*self.tfadv))+self.labda * self.l_lambda
@@ -126,7 +132,7 @@ class PPO(object):
         # print(a)
         return np.clip(a, -20, 20)
 
-    def update(self, s, a, r,l_r,s_,LR_A,LR_C,LR_L,labda):
+    def update(self, s, a, r,dcl_r,l_r,s_,LR_A,LR_C,LR_L,labda):
         self.sess.run(self.update_oldpi_op)
         adv = self.sess.run(self.advantage, {self.tfs: s, self.tfdc_r: r})
         # adv = (adv - adv.mean())/(adv.std()+1e-6)     # sometimes helpful
@@ -144,19 +150,20 @@ class PPO(object):
                 METHOD['lam'] *= 2
             METHOD['lam'] = np.clip(METHOD['lam'], 1e-4, 10)    # sometimes explode, this clipping is my solution
         else:   # clipping method, find this is better (OpenAI's paper)A
-            [self.sess.run(self.atrain, {self.tfs: s, self.tfa: a, self.tfadv: adv,self.LR_A: LR_A,self.labda:labda,self.cons_S:s,self.cons_S_:s_,self.tfdc_l:l_r}) for _ in range(A_UPDATE_STEPS)]
+            [self.sess.run(self.atrain, {self.tfs: s, self.tfa: a, self.tfadv: adv,self.LR_A: LR_A,self.labda:labda,
+                                         self.S_:s_,self.l_r:l_r}) for _ in range(A_UPDATE_STEPS)]
 
         # update critic
         [self.sess.run(self.ctrain, {self.tfs: s, self.tfdc_r: r,self.LR_C: LR_C}) for _ in range(C_UPDATE_STEPS)]
         # update Lyapunov
-        [self.sess.run(self.ltrain, {self.tfs: s, self.tfdc_l: l_r,self.LR_L: LR_L}) for _ in
+        [self.sess.run(self.ltrain, {self.tfs: s, self.tfdc_l: dcl_r,self.LR_L: LR_L}) for _ in
          range(L_UPDATE_STEPS)]
         return self.sess.run(self.closs,
                              {self.tfs: s, self.tfdc_r: r}),\
                self.sess.run(self.lloss,
-                  {self.tfs: s, self.tfdc_l: l_r}),\
-               self.sess.run(self.l_lambda, {self.cons_S: s,
-                                             self.cons_S_: s_, self.tfdc_l: l_r}), \
+                  {self.tfs: s, self.tfdc_l: dcl_r}),\
+               self.sess.run(self.l_lambda, {self.tfs: s,self.tfa:a,
+                                             self.S_: s_, self.l_r: l_r}), \
 
 
 
@@ -236,7 +243,7 @@ for i in range(MAX_EPISODES):
         # print(a)
         s_, r, done, hit = env.step(a)
 
-        r1 = max(abs(s_[0]) / 5, 3.5 / 5)
+        r1 = max((abs(s_[0]) -3.5)/ 5, 0)
         r2 = (abs(s_[2]) / env.theta_threshold_radians)
 
         l_r = (20 * r1) ** 2 + (20 * r2) ** 2
@@ -268,9 +275,11 @@ for i in range(MAX_EPISODES):
             discounted_r.reverse()
             discounted_l.reverse()
 
-            bs, ba, br,blr,bs_ = np.vstack(buffer_s), np.vstack(buffer_a), np.array(discounted_r)[:, np.newaxis],np.array(discounted_l)[:, np.newaxis], np.vstack(buffer_s_)
+            bs, ba, bdcr, bdclr, blr, bs_ = np.vstack(buffer_s), np.vstack(buffer_a), \
+                                         np.array(discounted_r)[:, np.newaxis],np.array(discounted_l)[:, np.newaxis], \
+                                         np.vstack(buffer_l), np.vstack(buffer_s_)
             buffer_s, buffer_a, buffer_r,buffer_l,buffer_s_ = [], [], [],[],[]
-            c_loss,lloss,l_q=ppo.update(bs, ba, br,blr,bs_,LR_A,LR_C,LR_L,labda)
+            c_loss,lloss,l_q=ppo.update(bs, ba, bdcr,bdclr, blr, bs_,LR_A,LR_C,LR_L,labda)
 
             if l_q > tol:
                 if labda == 0:
@@ -284,7 +293,7 @@ for i in range(MAX_EPISODES):
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0, i + 1] = EWMA_p * EWMA_c_loss[0, i] + (1 - EWMA_p) * c_loss
-            print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"L loss",lloss,"good","Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,'Running time: ', time.time() - t1)
+            print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"L loss",lloss,"good",'lambda', labda,"Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,'Running time: ', time.time() - t1)
             if EWMA_reward[0,i+1]>max_ewma_reward:
                 max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
                 LR_A *= .8  # learning rate for actor
@@ -314,10 +323,10 @@ for i in range(MAX_EPISODES):
             EWMA_c_loss[0,i+1] = EWMA_p*EWMA_c_loss[0,i]+(1-EWMA_p)*c_loss
             if hit==1:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"L loss",lloss, "break in : ", j, "due to ",
-                      "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
+                      "hit the wall", 'lambda', labda,"EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
             else:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward), "Critic loss",EWMA_c_loss[0,i+1],"L loss",lloss, "break in : ", j, "due to",
-                      "fall down","EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
+                      "fall down",'lambda', labda,"EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
             break
 
 print('Running time: ', time.time() - t1)

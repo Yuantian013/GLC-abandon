@@ -207,7 +207,7 @@ class DDPG(object):
 s_dim = env.observation_space.shape[0]
 a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
-Lyapunov=False
+Lyapunov=True
 ddpg = DDPG(a_dim, s_dim, a_bound,Lyapunov)
 lyapunov_error=100000
 critic_error=100000

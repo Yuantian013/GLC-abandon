@@ -133,7 +133,7 @@ class CartPoleEnv_adv(gym.Env):
             theta_dot = theta_dot + self.tau * thetaacc
             theta = theta + self.tau * theta_dot
         self.state = np.array([x, x_dot, theta, theta_dot])
-        done = x < 0 \
+        done = x < -self.x_threshold\
                or x > self.x_threshold \
                or theta < -self.theta_threshold_radians \
                or theta > self.theta_threshold_radians
@@ -152,8 +152,8 @@ class CartPoleEnv_adv(gym.Env):
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.2, high=0.2, size=(4,))
-        self.state[0] = self.np_random.uniform(low=5, high=6)
-        # self.state[0] = self.np_random.uniform(low=2, high=5)
+        # self.state[0] = self.np_random.uniform(low=5, high=6)
+        self.state[0] = self.np_random.uniform(low=2, high=5)
         self.steps_beyond_done = None
         return np.array(self.state)
 
