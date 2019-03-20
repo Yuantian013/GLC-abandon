@@ -13,11 +13,14 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 MAX_EPISODES = 500000
 MAX_EP_STEPS =2500
-# LR_A = 0.000001    # learning rate for actor
-LR_A = 0.00001    # learning rate for actor
+LR_A = 0.000001    # learning rate for actor
+# LR_A = 0.00001   # learning rate for actor
+# LR_A = 0.00002   # learning rate for actor
 # LR_A = 0.0001    # learning rate for actor
-LR_C = 0.02*2    # learning rate for critic
-LR_L = 0.0002*5    # learning rate for Lyapunov
+#
+LR_C = 0.04    # learning rate for critic
+LR_L = 0.001    # learning rate for Lyapunov
+# LR_L = 0.00005   # learning rate for Lyapunov
 GAMMA = 0.99    # reward discount
 labda=10.
 tol = 0.001
@@ -25,7 +28,7 @@ BATCH_SIZE = 64
 Epsilon_pi = 0.1
 RENDER = True
 METHOD = [
-    dict(name='kl_pen', kl_target=0.01, lam=0.5),   # KL penalty
+    dict(name='kl_pen', kl_target=5, lam=0.0000005),   # KL penalty
     dict(name='clip', epsilon=0.1),                 # Clipped surrogate objective, find this is better
 ][1]        # choose the method for optimization
 
@@ -35,7 +38,7 @@ env = env.unwrapped
 A_UPDATE_STEPS = 10
 C_UPDATE_STEPS = 5
 L_UPDATE_STEPS = 5
-
+#
 print(LR_A,LR_C,METHOD['epsilon'],A_UPDATE_STEPS,C_UPDATE_STEPS,LR_L,BATCH_SIZE)
 
 EWMA_p=0.95
@@ -64,7 +67,7 @@ class PPO(object):
         self.v = self._build_c(self.tfs, trainable=True)
         self.l = self._build_l(self.tfs)
         self.LR_L = tf.placeholder(tf.float32, None, 'LR_L')
-        self.labda = tf.placeholder(tf.float32, None, 'Lambda')
+        self.labda = tf.placeholder(tf.float32, None, 'Labda')
 
         # l_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Lyapunov')
 
@@ -124,9 +127,9 @@ class PPO(object):
         self.saver1 = tf.train.Saver(var1)
         self.saver2 = tf.train.Saver(var2)
         self.saver3 = tf.train.Saver(var3)
-        self.saver1.restore(self.sess, "Model/PPO.ckpt")  # 1 0.1 0.5 0.001
-        self.saver2.restore(self.sess, "Model/PPO.ckpt")  # 1 0.1 0.5 0.001
-        self.saver3.restore(self.sess, "Model/PPO.ckpt")  # 1 0.1 0.5 0.001
+        self.saver1.restore(self.sess, "Model/PPO_baseline.ckpt")  # 1 0.1 0.5 0.001
+        self.saver2.restore(self.sess, "Model/PPO_baseline.ckpt")  # 1 0.1 0.5 0.001
+        self.saver3.restore(self.sess, "Model/PPO_baseline.ckpt")  # 1 0.1 0.5 0.001
         self.saver = tf.train.Saver()
 
     def choose_action(self, s):
@@ -143,7 +146,7 @@ class PPO(object):
             for _ in range(A_UPDATE_STEPS):
                 _, kl = self.sess.run(
                     [self.atrain, self.kl_mean],
-                    {self.tfs: s, self.tfa: a, self.tfadv: adv, self.tflam: METHOD['lam'],self.LR_A: LR_A,self.LR_C: LR_C})
+                    {self.tfs: s, self.tfa: a, self.tfadv: adv, self.tflam: METHOD['lam'],self.LR_A: LR_A,self.LR_C: LR_C,self.l_r:l_r,self.S_:s_,self.labda:labda})
                 if kl > 4*METHOD['kl_target']:  # this in in google's paper
                     break
             if kl < METHOD['kl_target'] / 1.5:  # adaptive lambda, this is in OpenAI's paper
@@ -226,10 +229,10 @@ max_reward=200000
 max_ewma_reward=100000
 max_step=10
 
-critic_error=800000
-lyapnov_error=370000
-EWMA_c_loss[0,0]=1000000
-EWMA_l_loss[0,0]=600000
+critic_error=200000
+lyapnov_error=70000
+EWMA_c_loss[0,0]=300000
+EWMA_l_loss[0,0]=100000
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
@@ -294,7 +297,7 @@ for i in range(MAX_EPISODES):
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0, i + 1] = EWMA_p * EWMA_c_loss[0, i] + (1 - EWMA_p) * c_loss
             EWMA_l_loss[0, i + 1] = EWMA_p * EWMA_l_loss[0, i] + (1 - EWMA_p) * lloss
-            print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"Lyapunov loss",EWMA_l_loss[0, i + 1],"good","Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,"LR_L = ",LR_L,'Running time: ', time.time() - t1)
+            print('Episode:', i, ' Reward: %i' % int(ep_reward),"Lambda",labda,"Critic loss",EWMA_c_loss[0,i+1],"Lyapunov loss",EWMA_l_loss[0, i + 1],"good","Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,"LR_L = ",LR_L,'Running time: ', time.time() - t1)
             if EWMA_reward[0,i+1]>max_ewma_reward:
                 max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
                 LR_A *= .8  # learning rate for actor
@@ -311,18 +314,18 @@ for i in range(MAX_EPISODES):
                 print("max_reward : ",ep_reward)
 
             if EWMA_l_loss[0, i + 1]<lyapnov_error:
-                    lyapnov_error = EWMA_l_loss[0, i + 1]
-                    # LR_L *= 0.8
-                    LR_L *= 0.9
+                    lyapnov_error = EWMA_l_loss[0, i + 1]-2000
+                    LR_L *= 0.8
+                    # LR_L *= 0.9
 
 
             if EWMA_c_loss[0,i+1]<critic_error:
-                critic_error=EWMA_c_loss[0,i+1]
-                # LR_C *=0.8
-                LR_C *= 0.9
+                critic_error=EWMA_c_loss[0,i+1]-2000
+                LR_C *=0.8
+                # LR_C *= 0.9
 
 
-            # LR_A *= .999
+            LR_A *= .99
             LR_C *= .99
             LR_L *= .99
             break
@@ -334,10 +337,10 @@ for i in range(MAX_EPISODES):
             EWMA_l_loss[0, i + 1] = EWMA_l_loss[0,i]
             BATCH_SIZE = min(max(int(EWMA_step[0, i + 1] / 6), 4), 128)
             if hit==1:
-                print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"Lyapunov loss",EWMA_l_loss[0, i + 1], "break in : ", j, "due to ",
+                print('Episode:', i, ' Reward: %i' % int(ep_reward),"Lambda",labda,"Critic loss",EWMA_c_loss[0,i+1],"Lyapunov loss",EWMA_l_loss[0, i + 1], "break in : ", j, "due to ",
                       "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"LR_L = ",LR_L,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
             else:
-                print('Episode:', i, ' Reward: %i' % int(ep_reward), "Critic loss",EWMA_c_loss[0,i+1],"Lyapunov loss",EWMA_l_loss[0, i + 1], "break in : ", j, "due to",
+                print('Episode:', i, ' Reward: %i' % int(ep_reward),"Lambda",labda, "Critic loss",EWMA_c_loss[0,i+1],"Lyapunov loss",EWMA_l_loss[0, i + 1], "break in : ", j, "due to",
                       "fall down","EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"LR_L = ",LR_L,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
             break
 
