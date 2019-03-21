@@ -24,7 +24,7 @@ LR_L = 0.001    # learning rate for Lyapunov
 GAMMA = 0.99    # reward discount
 labda=10.
 tol = 0.001
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 Epsilon_pi = 0.1
 RENDER = True
 METHOD = [
@@ -283,7 +283,9 @@ for i in range(MAX_EPISODES):
             if l_q < -tol:
                 labda = labda / 2
         if j == MAX_EP_STEPS - 1:
-            BATCH_SIZE = 128
+            # BATCH_SIZE = 64
+            a=np.random.randint(1,9)
+            BATCH_SIZE = a*8
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0, i + 1] = EWMA_p * EWMA_c_loss[0, i] + (1 - EWMA_p) * c_loss
@@ -316,7 +318,7 @@ for i in range(MAX_EPISODES):
                 # LR_C *= 0.9
 
 
-            LR_A *= .99
+            LR_A *= .999
             LR_C *= .99
             LR_L *= .99
             break
@@ -326,7 +328,7 @@ for i in range(MAX_EPISODES):
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0,i+1] = EWMA_c_loss[0,i]
             EWMA_l_loss[0, i + 1] = EWMA_l_loss[0,i]
-            BATCH_SIZE = min(max(int(EWMA_step[0, i + 1] / 6), 4), 128)
+            BATCH_SIZE = min(max(int(EWMA_step[0, i + 1] / 10), 16), 64)
             if hit==1:
                 print('Episode:', i, ' Reward: %i' % int(ep_reward),"Lambda",labda,"Critic loss",EWMA_c_loss[0,i+1],"Lyapunov loss",EWMA_l_loss[0, i + 1], "break in : ", j, "due to ",
                       "hit the wall", "EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"LR_L = ",LR_L,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
