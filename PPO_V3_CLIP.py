@@ -234,7 +234,7 @@ for i in range(MAX_EPISODES):
     for j in range(MAX_EP_STEPS):
         if RENDER:
             env.render()
-
+        # print(s)
         a = ppo.choose_action(s)
 
         s_, r, done, hit = env.step(a)
