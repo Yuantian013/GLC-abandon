@@ -10,14 +10,14 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 #####################  hyper parameters  ####################
 
-MAX_EPISODES = 500000
-MAX_EP_STEPS =5120
-LR_A = 0.000001    # learning rate for actor
+MAX_EPISODES = 50000000
+MAX_EP_STEPS =2048
+LR_A = 0.0000001    # learning rate for actor
 LR_C = 0.00002    # learning rate for critic
 
 GAMMA = 0.99    # reward discount
-BATCH_SIZE = 128
-RENDER = True
+BATCH_SIZE = 32
+RENDER = False
 METHOD = [
     dict(name='kl_pen', kl_target=0.01, lam=0.5),   # KL penalty
     dict(name='clip', epsilon=0.2),                 # Clipped surrogate objective, find this is better
@@ -153,19 +153,20 @@ class PPO(object):
 
 ###############################  training  ####################################
 # env.seed(1)   # 普通的 Policy gradient 方法, 使得回合的 variance 比较大, 所以我们选了一个好点的随机种子
-
+#models.py mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False):
 s_dim = env.observation_space.shape[0]
 a_dim = env.action_space.shape[0]
 a_bound = env.action_space.high
-
+# print(env.action_space.high)
+# print(env.action_space.low)
 ppo = PPO(a_dim, s_dim, a_bound)
 t1 = time.time()
-max_reward=400000
-max_ewma_reward=200000
+max_reward=400
+max_ewma_reward=200
 max_step=10
 
-critic_error=40000
-EWMA_c_loss[0,0]=100000
+critic_error=500
+EWMA_c_loss[0,0]=1000
 for i in range(MAX_EPISODES):
     iteration[0,i+1]=i+1
     s = env.reset()
@@ -184,7 +185,6 @@ for i in range(MAX_EPISODES):
         s = s_
 
         ep_reward += r
-
         # update ppo
         if (j + 1) % BATCH_SIZE == 0 or j == MAX_EP_STEPS - 1 or done:
             v_s_ = ppo.get_v(s_)
@@ -197,22 +197,24 @@ for i in range(MAX_EPISODES):
             buffer_s, buffer_a, buffer_r = [], [], []
             c_loss=ppo.update(bs, ba, br,LR_A,LR_C)
         if j == MAX_EP_STEPS - 1:
-            a = np.random.randint(1, 9)
-            BATCH_SIZE = a * 16
+            # a = np.random.randint(1, 9)
+            # BATCH_SIZE = a * 8
+            # BATCH_SIZE=32
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
             EWMA_c_loss[0, i + 1] = EWMA_p * EWMA_c_loss[0, i] + (1 - EWMA_p) * c_loss
-            print('Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"good","Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,'Running time: ', time.time() - t1)
+            print(max_ewma_reward,'Episode:', i, ' Reward: %i' % int(ep_reward),"Critic loss",EWMA_c_loss[0,i+1],"good","Batch Size",BATCH_SIZE,"EWMA_step = ",EWMA_step[0,i+1],"EWMA_reward = ",EWMA_reward[0,i+1],"LR_A = ",LR_A,"LR_C = ",LR_C,'Running time: ', time.time() - t1)
             if EWMA_reward[0,i+1]>max_ewma_reward:
-                max_ewma_reward=min(EWMA_reward[0,i+1]+1000,500000)
+                max_ewma_reward=EWMA_reward[0,i+1]
                 LR_A *= .8  # learning rate for actor
-                LR_C *= .8  # learning rate for critic
+                # LR_C *= .8  # learning rate for critic
+                print("fuck")
                 ppo.save_result()
 
             if ep_reward> max_reward:
-                max_reward = min(ep_reward+5000,500000)
+                max_reward = ep_reward
                 LR_A *= .8  # learning rate for actor
-                LR_C *= .8  # learning rate for critic
+                # LR_C *= .8  # learning rate for critic
                 ppo.save_result()
                 print("max_reward : ",ep_reward)
 
@@ -229,9 +231,8 @@ for i in range(MAX_EPISODES):
         elif done:
             EWMA_step[0,i+1]=EWMA_p*EWMA_step[0,i]+(1-EWMA_p)*j
             EWMA_reward[0,i+1]=EWMA_p*EWMA_reward[0,i]+(1-EWMA_p)*ep_reward
-            EWMA_c_loss[0,i+1] = 100000
-            BATCH_SIZE = min(max(int(EWMA_step[0, i + 1] / 4), 4), 256)
-
+            EWMA_c_loss[0, i + 1] = EWMA_p * EWMA_c_loss[0, i] + (1 - EWMA_p) * c_loss
+            # BATCH_SIZE = 32
             print('Episode:', i, ' Reward: %i' % int(ep_reward), "Critic loss",EWMA_c_loss[0,i+1], "break in : ", j, "due to",
                       "fall down","EWMA_step = ", EWMA_step[0, i + 1], "EWMA_reward = ", EWMA_reward[0, i + 1],"LR_A = ",LR_A,"LR_C = ",LR_C,"Batch Size",BATCH_SIZE,'Running time: ', time.time() - t1)
             break

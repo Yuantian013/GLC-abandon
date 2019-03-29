@@ -1,2 +1,2 @@
-model_checkpoint_path: "Ant_ddpg.ckpt"
-all_model_checkpoint_paths: "Ant_ddpg.ckpt"
+model_checkpoint_path: "ant_ppo.ckpt"
+all_model_checkpoint_paths: "ant_ppo.ckpt"
